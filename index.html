@@ -12957,8 +12957,17 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             if (currentTypeCheck !== '2.0TD') {
                 return window.showErrorModal("El escáner QR solo es compatible con la tarifa 2.0 TD.");
             }
+            // Si las tarifas aún no están cargadas, esperamos automáticamente sin mostrar modal
             if (currentTariffs['2.0TD'].length === 0) {
-                 return window.showErrorModal("Cargando tarifas para esta modalidad. Por favor, espere.");
+                console.log('⏳ Esperando que se carguen las tarifas 2.0TD...');
+                const checkInterval = setInterval(() => {
+                    if (currentTariffs['2.0TD'].length > 0) {
+                        clearInterval(checkInterval);
+                        console.log('✅ Tarifas 2.0TD cargadas. Iniciando escáner...');
+                        startScanner(); // Reintentar
+                    }
+                }, 200); // Verificar cada 200ms
+                return;
             }
             if (scannerRunning) return;
             
