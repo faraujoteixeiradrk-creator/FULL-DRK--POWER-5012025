@@ -1379,8 +1379,39 @@
                 </button>
                 
                 <button id="modal-upload-file-btn" class="w-full bg-drk-800 hover:bg-drk-900 text-white font-bold py-3 px-6 rounded-xl shadow-md mb-3">Subir Imagen</button>
-                <button id="modal-paste-image-btn" class="w-full bg-drk-600 hover:bg-drk-800 text-white font-bold py-3 px-6 rounded-xl shadow-md mb-4">Pegar Imagen (CTRL+V)</button>
+                <button id="modal-paste-image-btn" class="w-full bg-drk-600 hover:bg-drk-800 text-white font-bold py-3 px-6 rounded-xl shadow-md mb-3">Pegar Imagen (CTRL+V)</button>
+                
+                <!-- NUEVO: 4ª Opción - Pegar Código Completo -->
+                <button id="modal-paste-url-btn" class="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold py-3 px-6 rounded-xl shadow-md mb-4 flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span>Pegar Código Completo</span>
+                </button>
+                
                 <button onclick="document.getElementById('qr-options-modal').classList.add('hidden'); document.getElementById('qr-options-modal').classList.remove('flex');" class="w-full bg-slate-200 font-bold py-3 rounded-xl">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- NUEVO: Modal para Pegar Código Completo del QR -->
+        <div id="paste-url-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-lg w-full">
+                <h3 class="text-xl font-bold text-drk-800 mb-2">📋 Pegar Código QR Completo</h3>
+                <p class="text-sm text-slate-600 mb-4">Pega aquí la URL completa que obtuviste de otra aplicación de lectura de QR.</p>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
+                    <strong>💡 Ejemplo:</strong><br>
+                    <code class="text-xs break-all">https://comparador.cnmc.gob.es/comparador/QRE?cp=28700&pP1=9.200&...</code>
+                </div>
+                
+                <textarea id="paste-url-textarea" placeholder="Pega aquí la URL completa del QR..." class="w-full h-32 p-3 border border-slate-300 rounded-lg text-sm font-mono resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none mb-4"></textarea>
+                
+                <div class="flex gap-3">
+                    <button id="paste-url-process-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-xl shadow-md">
+                        ✓ Procesar Código
+                    </button>
+                    <button id="paste-url-cancel-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-6 rounded-xl">
+                        Cancelar
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -12188,6 +12219,47 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             });
             
             setupPasteCatcher(); // <-- Llamada ahora segura
+
+            // === NUEVO: Event listeners para "Pegar Código Completo" ===
+            document.getElementById('modal-paste-url-btn').addEventListener('click', () => {
+                console.log('📋 [PASTE URL] Abriendo modal para pegar código completo');
+                // Cerrar modal de opciones
+                document.getElementById('qr-options-modal').classList.add('hidden');
+                document.getElementById('qr-options-modal').classList.remove('flex');
+                // Abrir modal de paste URL
+                document.getElementById('paste-url-modal').classList.remove('hidden');
+                document.getElementById('paste-url-modal').classList.add('flex');
+                // Limpiar textarea
+                document.getElementById('paste-url-textarea').value = '';
+                // Focus en textarea
+                setTimeout(() => document.getElementById('paste-url-textarea').focus(), 100);
+            });
+
+            document.getElementById('paste-url-process-btn').addEventListener('click', () => {
+                const urlText = document.getElementById('paste-url-textarea').value.trim();
+                
+                if (!urlText) {
+                    alert('Por favor, pega el código QR completo en el área de texto.');
+                    return;
+                }
+                
+                console.log('✅ [PASTE URL] Procesando URL pegada');
+                console.log(`📊 URL: ${urlText.substring(0, 100)}...`);
+                
+                // Cerrar modal
+                document.getElementById('paste-url-modal').classList.add('hidden');
+                document.getElementById('paste-url-modal').classList.remove('flex');
+                
+                // Procesar como si fuera un QR leído
+                handleQRRead(urlText);
+            });
+
+            document.getElementById('paste-url-cancel-btn').addEventListener('click', () => {
+                console.log('❌ [PASTE URL] Cancelado');
+                document.getElementById('paste-url-modal').classList.add('hidden');
+                document.getElementById('paste-url-modal').classList.remove('flex');
+            });
+            // === FIN Event listeners Pegar Código Completo ===
 
             document.getElementById('send-offer-btn').onclick = () => {
                 if (lastComparisonResult) {
