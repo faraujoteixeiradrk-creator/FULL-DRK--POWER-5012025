@@ -532,8 +532,8 @@
                             >
                         </div>
                         
-                        <!-- SELECTOR: Comparar Indexada vs Fija -->
-                        <div class="pt-4 border-t border-slate-200">
+                        <!-- SELECTOR: Comparar Indexada vs Fija (Oculto en modo DUAL) -->
+                        <div id="gas-indexed-comparison-section" class="pt-4 border-t border-slate-200">
                             <label class="flex items-center gap-3 cursor-pointer">
                                 <input 
                                     type="checkbox" 
@@ -2353,23 +2353,35 @@
             };
             
             // Si tenemos finalResult, extraer la oferta real
-            if (finalResult && finalResult.offer) {
-                offerData = {
-                    ...finalResult.offer,
-                    // Añadir precios de potencia y energía si existen
-                    p1_power_price: finalResult.powerCosts?.[0]?.priceDay || finalResult.powerCosts?.[0]?.price_euro_kw_day,
-                    p2_power_price: finalResult.powerCosts?.[1]?.priceDay || finalResult.powerCosts?.[1]?.price_euro_kw_day,
-                    p3_power_price: finalResult.powerCosts?.[2]?.priceDay || finalResult.powerCosts?.[2]?.price_euro_kw_day,
-                    p4_power_price: finalResult.powerCosts?.[3]?.priceDay || finalResult.powerCosts?.[3]?.price_euro_kw_day,
-                    p5_power_price: finalResult.powerCosts?.[4]?.priceDay || finalResult.powerCosts?.[4]?.price_euro_kw_day,
-                    p6_power_price: finalResult.powerCosts?.[5]?.priceDay || finalResult.powerCosts?.[5]?.price_euro_kw_day,
-                    p1_price: finalResult.energyCosts?.[0]?.price || finalResult.energyCosts?.[0]?.price_euro_kwh,
-                    p2_price: finalResult.energyCosts?.[1]?.price || finalResult.energyCosts?.[1]?.price_euro_kwh,
-                    p3_price: finalResult.energyCosts?.[2]?.price || finalResult.energyCosts?.[2]?.price_euro_kwh,
-                    p4_price: finalResult.energyCosts?.[3]?.price || finalResult.energyCosts?.[3]?.price_euro_kwh,
-                    p5_price: finalResult.energyCosts?.[4]?.price || finalResult.energyCosts?.[4]?.price_euro_kwh,
-                    p6_price: finalResult.energyCosts?.[5]?.price || finalResult.energyCosts?.[5]?.price_euro_kwh
-                };
+            if (finalResult) {
+                if (finalResult.offer) {
+                    offerData = {
+                        ...finalResult.offer,
+                        // Añadir precios de potencia y energía si existen (para electricidad)
+                        p1_power_price: finalResult.powerCosts?.[0]?.priceDay || finalResult.powerCosts?.[0]?.price_euro_kw_day,
+                        p2_power_price: finalResult.powerCosts?.[1]?.priceDay || finalResult.powerCosts?.[1]?.price_euro_kw_day,
+                        p3_power_price: finalResult.powerCosts?.[2]?.priceDay || finalResult.powerCosts?.[2]?.price_euro_kw_day,
+                        p4_power_price: finalResult.powerCosts?.[3]?.priceDay || finalResult.powerCosts?.[3]?.price_euro_kw_day,
+                        p5_power_price: finalResult.powerCosts?.[4]?.priceDay || finalResult.powerCosts?.[4]?.price_euro_kw_day,
+                        p6_power_price: finalResult.powerCosts?.[5]?.priceDay || finalResult.powerCosts?.[5]?.price_euro_kw_day,
+                        p1_price: finalResult.energyCosts?.[0]?.price || finalResult.energyCosts?.[0]?.price_euro_kwh,
+                        p2_price: finalResult.energyCosts?.[1]?.price || finalResult.energyCosts?.[1]?.price_euro_kwh,
+                        p3_price: finalResult.energyCosts?.[2]?.price || finalResult.energyCosts?.[2]?.price_euro_kwh,
+                        p4_price: finalResult.energyCosts?.[3]?.price || finalResult.energyCosts?.[3]?.price_euro_kwh,
+                        p5_price: finalResult.energyCosts?.[4]?.price || finalResult.energyCosts?.[4]?.price_euro_kwh,
+                        p6_price: finalResult.energyCosts?.[5]?.price || finalResult.energyCosts?.[5]?.price_euro_kwh
+                    };
+                }
+                
+                // Si es gas, agregar precios de gas (siempre, incluso si no hay offer)
+                if (type === 'gas') {
+                    const energiaTotal = finalResult.energia || finalResult.total_energia || 0;
+                    const kwhTotal = parseFloat(data.kwh) || 1;
+                    const precioEnergiaUnitario = kwhTotal > 0 ? energiaTotal / kwhTotal : (finalResult.p_fijo_1 || 0);
+                    
+                    offerData.p_fijo_diario = finalResult.termino_fijo_diario || finalResult.p_fijo_diario || 0;
+                    offerData.p1_price = precioEnergiaUnitario; // Precio unitario de energía
+                }
             }
             
             const supply = {
@@ -2408,21 +2420,30 @@
                     dias: data.dias || 30
                 };
             } else {
+                // Para gas, extraer correctamente los datos de finalResult
+                const energiaTotal = finalResult?.energia || finalResult?.total_energia || 0;
+                const kwhTotal = totalKwh || 1; // Evitar división por 0
+                const precioEnergiaUnitario = kwhTotal > 0 ? energiaTotal / kwhTotal : (finalResult?.p_fijo_1 || 0);
+                
                 supply.gasBreakdown = {
                     totalKwh: totalKwh,
                     kwh: totalKwh,
                     dias: data.dias || 30,
-                    // Si hay finalResult con datos de gas, usarlos
-                    termino_fijo: finalResult?.total_fijo || 0,
-                    termino_fijo_diario: finalResult?.p_fijo_diario || 0,
-                    energia: finalResult?.total_energia || 0,
+                    // Mapear correctamente los campos de gas
+                    termino_fijo: finalResult?.termino_fijo || finalResult?.total_fijo || 0,
+                    termino_fijo_diario: finalResult?.termino_fijo_diario || finalResult?.p_fijo_diario || 0,
+                    precio_fijo_diario: finalResult?.termino_fijo_diario || finalResult?.p_fijo_diario || 0,
+                    energia: energiaTotal,
+                    precio_energia: precioEnergiaUnitario, // Calculado: total energía / kWh
                     impuesto_hidrocarburos: finalResult?.impuesto_hidrocarburos || 0,
                     subtotal: finalResult?.subtotal || 0,
                     iva: finalResult?.iva || 0,
                     total: finalResult?.total || 0,
                     total_anual: supply.totalAnnual,
                     ahorro_mensual: 0,
-                    ahorro_anual: (data.originalBillAnnual || 0) - supply.totalAnnual
+                    ahorro_anual: (data.originalBillAnnual || 0) - supply.totalAnnual,
+                    // Agregar también la oferta completa
+                    offer: finalResult?.offer || {}
                 };
             }
             
@@ -4442,7 +4463,7 @@
                                     ${res.individualResults.map((supply, idx) => `
                                         <div class="bg-white rounded p-2 border border-blue-200">
                                             <div class="flex justify-between items-start mb-1">
-                                                <span class="font-mono text-slate-600">${supply.cups.slice(-12)}</span>
+                                                <span class="font-mono text-slate-600">${supply.cups}</span>
                                                 <span class="font-bold text-green-600">${eur(supply.savings)}</span>
                                             </div>
                                             <div class="text-slate-700">
@@ -4463,7 +4484,7 @@
                                         return `
                                         <div class="bg-white rounded p-2 border border-green-200">
                                             <div class="flex justify-between items-start mb-1">
-                                                <span class="font-mono text-slate-600">${supply.cups.slice(-12)}</span>
+                                                <span class="font-mono text-slate-600">${supply.cups}</span>
                                                 <span class="font-bold text-green-600">${eur(indexedSavings)}</span>
                                             </div>
                                             <div class="text-slate-700">
@@ -6588,10 +6609,13 @@
         
         // --- GENERACIÓN DE PDF CON COMPARACIÓN DUAL (FIJO VS INDEXADO) CON DESARROLLO COMPLETO ---
         
-        async function generatePDF_Dual(resFijo, resIndexed) {
+        async function generatePDF_Dual(resFijo, resIndexed, commercialCode = 'D=00', clientName = '[NOMBRE COMPLETO CLIENTE]', clientPhone = '', clientEmail = '', clientAddress = '') {
             try {
                 console.log('=== generatePDF_Dual INICIADO ===');
                 console.log('resFijo:', resFijo);
+                console.log('commercialCode:', commercialCode);
+                console.log('clientName:', clientName);
+                console.log('clientAddress:', clientAddress);
                 console.log('resFijo tiene powerCosts?:', !!resFijo.powerCosts);
                 console.log('resFijo tiene energyCosts?:', !!resFijo.energyCosts);
                 console.log('resIndexed:', resIndexed);
@@ -6633,9 +6657,13 @@
                 const tariffType = resFijo.originalTariffType || currentTariffType;
                 const config = TARIFF_CONFIG[tariffType] || TARIFF_CONFIG['2.0TD'];
                 
-                const commercialCode = document.getElementById('comercial-code-input').value.trim();
-                const clientName = document.getElementById('client-name-input').value.trim() || '[NOMBRE COMPLETO CLIENTE]';
-                const clientAddress = document.getElementById('client-address-input').value.trim();
+                // Ya no necesitamos capturar desde el DOM, usamos los parámetros de la función
+                console.log('📋 Datos del comercial recibidos como parámetros:');
+                console.log('  - Código comercial:', commercialCode);
+                console.log('  - Nombre cliente:', clientName);
+                console.log('  - 🏠 Dirección:', clientAddress);
+                console.log('  - Teléfono:', clientPhone);
+                console.log('  - Email:', clientEmail);
                 
                 // Colores dinámicos según la marca activa
                 const darkColor = [107, 125, 142];
@@ -6769,6 +6797,17 @@
                 doc.setTextColor(75, 85, 99);
                 doc.text(tr('CLIENTE:') + ' ' + clientName.toUpperCase(), margin, yPos);
                 yPos += 6;
+                
+                // Mostrar dirección si existe
+                if (clientAddress && clientAddress.trim() !== '') {
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text('🏠 ' + tr('DIRECCIÓN:') + ' ' + clientAddress, margin, yPos);
+                    yPos += 6;
+                    doc.setTextColor(75, 85, 99);
+                    doc.setFontSize(10);
+                }
+                
                 doc.text('CUPS TOTALES: ' + (resFijo.isMulti ? resFijo.cups : '1'), margin, yPos);
                 yPos += 12;
                 
@@ -7735,7 +7774,7 @@
                     
                     // CUPS (primera línea)
                     doc.setFontSize(7);
-                    doc.text(supply.cups.substring(0, 18) + '...', margin + 12, yPos + 4.5);
+                    doc.text(supply.cups, margin + 12, yPos + 4.5);
                     
                     // DIRECCIÓN (segunda línea, si existe)
                     if (supply.supplyAddress && supply.supplyAddress !== 'No especificada') {
@@ -7796,7 +7835,7 @@
                     doc.setTextColor(255, 255, 255);
                     doc.setFontSize(7);
                     doc.setFont('helvetica', 'bold');
-                    doc.text(`[${supply.cups.slice(-12)}]`, x + 3, y + 4);
+                    doc.text(`[${supply.cups}]`, x + 3, y + 4);
                     doc.text(`Tipo: ${tariffType}`, x + width - 3, y + 4, { align: 'right' });
                     doc.text(`Días: ${resultado.dias_facturados || 0}`, x + width - 3, y + 8, { align: 'right' });
                     
@@ -8010,7 +8049,7 @@
                     doc.setTextColor(0, 0, 0);
                     doc.setFontSize(6.5);
                     doc.setFont('helvetica', 'bold');
-                    doc.text(supply.cups.slice(-12), leftX + 2, yPos + 4);
+                    doc.text(supply.cups, leftX + 2, yPos + 4);
                     doc.setTextColor(22, 163, 74);
                     doc.setFontSize(7);
                     doc.text(eur(supply.savings), leftX + colWidth - 2, yPos + 4, { align: 'right' });
@@ -8026,7 +8065,7 @@
                     doc.setTextColor(0, 0, 0);
                     doc.setFontSize(6.5);
                     doc.setFont('helvetica', 'bold');
-                    doc.text(supply.cups.slice(-12), rightX + 2, yPos + 4);
+                    doc.text(supply.cups, rightX + 2, yPos + 4);
                     const savingsIdx = supply.indexedComparison ? supply.indexedComparison.savings : 0;
                     doc.setTextColor(22, 163, 74);
                     doc.setFontSize(7);
@@ -9291,7 +9330,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                         doc.setTextColor(255, 255, 255);
                         doc.setFontSize(7);
                         doc.setFont('helvetica', 'bold');
-                        doc.text('[ES]', x + 3, y + 5);
+                        doc.text('[' + (res.cups || 'ES') + ']', x + 3, y + 5);
                         doc.text(`Tipo: ${res.tariffType}`, x + colWidth - 3, y + 5, { align: 'right' });
                         doc.setFont('helvetica', 'normal');
                         doc.text(`Días: ${res.dias_facturados || 30}`, x + colWidth - 3, y + 9, { align: 'right' });
@@ -9424,7 +9463,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                     doc.setTextColor(255, 255, 255);
                     doc.setFontSize(7);
                     doc.setFont('helvetica', 'bold');
-                    doc.text('[ES]', margin + 3, y + 5);
+                    doc.text('[' + (resActual.cups || 'ES') + ']', margin + 3, y + 5);
                     doc.text(`Tipo: ${resActual.tariffType}`, pageWidth - margin - 3, y + 5, { align: 'right' });
                     doc.setFont('helvetica', 'normal');
                     doc.text(`Días: ${resActual.dias_facturados || 30}`, pageWidth - margin - 3, y + 9, { align: 'right' });
@@ -9770,7 +9809,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                 } else {
                     // Individual con índice
                     console.log('✅ Generando PDF INDIVIDUAL DUAL');
-                    await generatePDF_Dual(lastComparisonResult, lastIndexedResult);
+                    await generatePDF_Dual(lastComparisonResult, lastIndexedResult, commercialCode, clientName, clientPhone, clientEmail, clientAddress);
                 }
                 
                 // Cerrar modal
@@ -10189,7 +10228,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                         
                         // CUPS (primera línea)
                         doc.setFontSize(7);
-                        doc.text(supply.cups.substring(0, 18) + '...', margin + 12, yPos + 4.5);
+                        doc.text(supply.cups, margin + 12, yPos + 4.5);
                         
                         // DIRECCIÓN (segunda línea, si existe)
                         if (supply.supplyAddress && supply.supplyAddress !== 'No especificada') {
@@ -10433,7 +10472,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                             doc.setLineWidth(2);
                             doc.roundedRect(margin, yPos, contentWidth, 12, 3, 3, 'FD');
                             doc.setTextColor(255, 255, 255);
-                            doc.setFontSize(9);
+                            doc.setFontSize(7);
                             doc.setFont('helvetica', 'bold');
                             doc.text(`[${idx + 1}] ${supply.cups}`, margin + 3, yPos + 5);
                             doc.setFontSize(7);
@@ -13485,10 +13524,16 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             // Ocultar el selector de tarifa al abrir el modal (se mostrará solo si es necesario)
             document.getElementById('best-option-tariff-selector')?.classList.add('hidden');
             
-            // NUEVO: Si hay comparativo de potencias optimizadas activo, OCULTAR el checkbox de Fijo & Indexado
+            // NUEVO: Si hay comparativo de potencias optimizadas activo O es modo DUAL, OCULTAR el checkbox de Fijo & Indexado
             const checkboxContainer = document.getElementById('powercup-indexed-comparison-checkbox');
-            if (window.optimizedPowerEnabled) {
-                console.log('⚡ Optimización de potencias activa - Ocultando checkbox Fijo & Indexado');
+            const isDualMode = window.dualMode === true;
+            
+            if (window.optimizedPowerEnabled || isDualMode) {
+                if (isDualMode) {
+                    console.log('🔄 Modo DUAL activo - Ocultando checkbox Fijo & Indexado');
+                } else {
+                    console.log('⚡ Optimización de potencias activa - Ocultando checkbox Fijo & Indexado');
+                }
                 checkboxContainer?.classList.add('hidden');
                 // Asegurar que el checkbox esté desmarcado
                 const indexedCheckbox = document.getElementById('compare-with-indexed');
@@ -13497,7 +13542,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                     compareWithIndexed = false;
                 }
             } else {
-                // IMPORTANTE: El checkbox de comparación visible normalmente (para DRK y POWER CUP)
+                // IMPORTANTE: El checkbox de comparación visible solo si NO es DUAL y NO hay optimización
                 checkboxContainer?.classList.remove('hidden');
             }
             
@@ -13582,6 +13627,13 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             // Detectar contexto
             const isDrkMode = comparisonMode !== 'overall_best';
             const isIndividual = currentTariffType !== 'MULTICUPS';
+            const isDualMode = window.dualMode === true;
+            
+            // IMPORTANTE: En modo DUAL, siempre ocultar el checkbox
+            if (isDualMode) {
+                console.log('🔄 Modo DUAL: Ocultando checkbox de comparación indexada');
+                if (checkboxContainer) checkboxContainer.classList.add('hidden');
+            }
             
             if (isDrkMode) {
                 // DRK (Individual o MULTICUPS)
@@ -13590,7 +13642,8 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                     // CHECK MARCADO: Comparar automáticamente FIJO vs INDEXADO (NO mostrar selector)
                     console.log('DRK con CHECK marcado: Comparando automáticamente FIJO vs INDEXADO');
                     selectorDiv?.classList.add('hidden');
-                    if (checkboxContainer) checkboxContainer.classList.remove('hidden');
+                    // Solo mostrar checkbox si NO es modo DUAL
+                    if (checkboxContainer && !isDualMode) checkboxContainer.classList.remove('hidden');
                     selectBestOptionDirect(); // Ejecutar directamente
                 } else {
                     // CHECK NO MARCADO: Mostrar selector para elegir FIJA o INDEXADA
@@ -18561,7 +18614,7 @@ ${clientName}
         <!-- DATOS CLIENTE -->
         <div style="padding:15px 30px;background:#f8f9fa">
             <p style="margin:0 0 5px 0;font-size:11px;color:#1e293b"><strong>${tr("CLIENTE:")}</strong> ${clientName}</p>
-            <p style="margin:0 0 5px 0;font-size:11px;color:#1e293b"><strong>${tr("CUPS:")}</strong> ${dualSupplies[0].cups}</p>
+            <p style="margin:0 0 5px 0;font-size:11px;color:#1e293b"><strong>${tr("CUPS:")}</strong> ${dualSupplies && dualSupplies[0] && dualSupplies[0].cups ? dualSupplies[0].cups : 'N/A'}</p>
             <p style="margin:0;font-size:11px;color:#1e293b"><strong>${tr("COMERCIAL:")}</strong> ${comercialCode}</p>
         </div>
         
@@ -18592,7 +18645,7 @@ ${clientName}
                     return `
                     <tr style="border-bottom:1px solid #f1f5f9">
                         <td style="padding:12px 8px;font-size:11px;color:#1e293b;font-weight:bold">${i+1}</td>
-                        <td style="padding:12px 8px;font-size:9px;color:#64748b">${s.cups.substring(0,17)}...</td>
+                        <td style="padding:12px 8px;font-size:9px;color:#64748b">${s.cups}</td>
                         <td style="padding:12px 8px;font-size:10px;color:#1e293b;text-align:center">${emoji} ${tipo}</td>
                         <td style="padding:12px 8px;font-size:11px;color:#1e293b;text-align:center;font-weight:bold">${s.tariff}</td>
                         <td style="padding:12px 8px;font-size:12px;color:${ahorro > 0 ? '#22c55e' : '#9ca3af'};text-align:right;font-weight:bold">${ahorro.toFixed(2)} €</td>
@@ -18668,7 +18721,7 @@ ${clientName}
                 
                 return `
                 <div style="margin:15px 30px;background:${primaryColor};padding:12px;border-radius:5px">
-                    <p style="margin:0 0 5px 0;font-size:11px;color:white;font-weight:bold">[${i+1}] ${s.cups.substring(0,25)}...</p>
+                    <p style="margin:0 0 5px 0;font-size:11px;color:white;font-weight:bold">[${i+1}] ${s.cups}</p>
                     <p style="margin:0;font-size:10px;color:white">${tr('Tipo:')}: ${s.tariff} | ${tr('Días:')}: ${dias} ${tr('días')} | CUPS: [${i+1}]</p>
                     <p style="margin:5px 0 0 0;font-size:10px;color:white"><strong>${tr('TARIFA:')}</strong> ${tarifaCompleta}</p>
                 </div>
@@ -19204,9 +19257,11 @@ ${clientName}
                 doc.setFont('helvetica', 'normal');
                 doc.text(tr('CLIENTE: ') + clientName, margin + 5, yPos + 20);
                 
-                // CUPS del primer suministro
-                if (dualSupplies && dualSupplies.length > 0) {
-                    doc.text(tr('CUPS: ') + (dualSupplies[0].cups || 'N/A'), margin + 5, yPos + 25);
+                // CUPS del primer suministro (usar de dualSupplies si existe)
+                if (dualSupplies && dualSupplies.length > 0 && dualSupplies[0].cups) {
+                    doc.text(tr('CUPS: ') + dualSupplies[0].cups, margin + 5, yPos + 25);
+                } else {
+                    doc.text(tr('CUPS: ') + 'N/A', margin + 5, yPos + 25);
                 }
                 
                 // Comercial en caja destacada
@@ -19327,7 +19382,7 @@ ${clientName}
                     doc.text(String(idx + 1), margin + 5, yPos + 3.5);
                     
                     // CUPS (primera línea)
-                    const cupsShort = supply.cups && supply.cups.length > 22 ? supply.cups.substring(0, 20) + '...' : (supply.cups || 'N/A');
+                    const cupsShort = supply.cups || 'N/A';
                     doc.text(cupsShort, margin + 15, yPos + 3.5);
                     
                     // DIRECCIÓN (segunda línea, si existe)
@@ -19525,7 +19580,7 @@ ${clientName}
                     doc.setTextColor(255, 255, 255);
                     doc.setFontSize(10);
                     doc.setFont('helvetica', 'bold');
-                    const cupsDisplay = supply.cups && supply.cups.length > 30 ? supply.cups.substring(0, 28) + '...' : (supply.cups || 'N/A');
+                    const cupsDisplay = supply.cups || 'N/A';
                     doc.text(`[${idx + 1}] ${cupsDisplay}`, margin + 3, yPos + 6);
                     
                     doc.setFontSize(8);
@@ -20512,6 +20567,18 @@ ${clientName}
             // CRÍTICO: Verificar modo DUAL para ocultar/mostrar botón DUAL
             if (window.checkDualMode) {
                 window.checkDualMode();
+            }
+            
+            // NUEVO: Ocultar checkbox de comparación indexada si está en modo DUAL
+            const gasIndexedSection = document.getElementById('gas-indexed-comparison-section');
+            if (window.dualMode === true && gasIndexedSection) {
+                console.log('🔄 Modo DUAL en Gas: Ocultando checkbox de comparación indexada');
+                gasIndexedSection.classList.add('hidden');
+                // Asegurar que el checkbox esté desmarcado
+                document.getElementById('gas-compare-indexed-fixed').checked = false;
+            } else if (gasIndexedSection) {
+                // Mostrar la sección si NO es modo DUAL
+                gasIndexedSection.classList.remove('hidden');
             }
             
             // Mostrar modal
@@ -22810,32 +22877,36 @@ ${clientName}
             
             yPos += 12;
             
-            // Info del cliente (caja con borde)
+            // Info del cliente (caja con borde) - altura aumentada para 4 líneas
             doc.setDrawColor(76, 175, 80);
             doc.setLineWidth(1.5);
-            doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 22, 2, 2, 'S');
+            doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 27, 2, 2, 'S');
             
             doc.setTextColor(75, 85, 99);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
-            doc.text('COMPARATIVA PROFESIONAL GAS - DRK', margin + 5, yPos + 7);
+            doc.text('COMPARATIVA PROFESIONAL GAS - DRK', margin + 5, yPos + 6);
             
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(9);
-            doc.text(tr('CLIENTE:') + ' ' + clientName, margin + 5, yPos + 13);
-            doc.text('TARIFA: ' + currentGasTariff, margin + 5, yPos + 18);
+            doc.text(tr('CLIENTE:') + ' ' + clientName, margin + 5, yPos + 11);
+            // Agregar CUPS
+            const gasParams = window.gasCalculationParams || {};
+            const cups = gasParams.cups || 'N/A';
+            doc.text('CUPS: ' + cups, margin + 5, yPos + 16);
+            doc.text('TARIFA: ' + currentGasTariff, margin + 5, yPos + 21);
             
             doc.setFont('helvetica', 'bold');
-            doc.text('COMERCIAL: ' + comercialCode, pageWidth - margin - 45, yPos + 13);
+            doc.text('COMERCIAL: ' + comercialCode, pageWidth - margin - 45, yPos + 11);
             
             // Dirección debajo del comercial (si existe)
             if (clientAddress) {
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(8);
-                doc.text(tr('Dirección:') + ' ' + clientAddress, pageWidth - margin - 45, yPos + 18);
+                doc.text(tr('Dirección:') + ' ' + clientAddress, pageWidth - margin - 45, yPos + 16);
             }
             
-            yPos += 28;
+            yPos += 33;
             
             // CAJA GRIS "LA MEJOR OPCIÓN"
             doc.setFillColor(107, 125, 142);
@@ -23231,7 +23302,10 @@ ${clientName}
             doc.setFontSize(9);
             doc.setFont('helvetica', 'normal');
             doc.text(`CLIENTE: ${clientName}`, 17, y + 20);
-            doc.text(`CUPS: ${dualSupplies.length > 1 ? dualSupplies[0].cups.substring(0,20) + '...' : dualSupplies[0].cups}`, 17, y + 25);
+            // Usar cups de gasCalculationParams
+            const gasParams = window.gasCalculationParams || {};
+            const cups = gasParams.cups || 'N/A';
+            doc.text(`CUPS: ${cups}`, 17, y + 25);
             
             // Comercial en caja destacada (derecha)
             doc.setFillColor(240, 245, 248);
@@ -23434,7 +23508,7 @@ ${clientName}
             doc.roundedRect(leftX, leftY, colW, 18, 2, 2, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(7);
-            doc.text('[ES0021000020679723GY]', leftX + 3, leftY + 5);
+            doc.text(('[' + (window.gasCalculationParams && window.gasCalculationParams.cups ? window.gasCalculationParams.cups : 'N/A') + ']'), leftX + 3, leftY + 5);
             doc.text('Tipo: ' + currentGasTariff, leftX + colW - 3, leftY + 5, { align: 'right' });
             doc.text('Días: ' + dias, leftX + colW - 3, leftY + 10, { align: 'right' });
             doc.setFontSize(8);
@@ -23532,7 +23606,7 @@ ${clientName}
             doc.roundedRect(rightX, rightY, colW, 18, 2, 2, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(7);
-            doc.text('[ES0021000020679723GY]', rightX + 3, rightY + 5);
+            doc.text(('[' + (window.gasCalculationParams && window.gasCalculationParams.cups ? window.gasCalculationParams.cups : 'N/A') + ']'), rightX + 3, rightY + 5);
             doc.text('Tipo: ' + currentGasTariff, rightX + colW - 3, rightY + 5, { align: 'right' });
             doc.text('Días: ' + dias, rightX + colW - 3, rightY + 10, { align: 'right' });
             doc.setFontSize(8);
@@ -23700,7 +23774,7 @@ ${clientName}
             });
             
             doc.save('GAS_Dual_' + currentGasTariff + '.pdf');
-            window.showMessageModal("✅ PDF generado", false);
+            window.showMessageModal("✅ PDF generado correctamente");
         }
         
         // ============================================
@@ -23830,7 +23904,10 @@ ${clientName}
             doc.text(tr('CLIENTE:') + ' ' + clientName + '', 25, y);
             
             y += 5;
-            doc.text('CUPS: ES0021000020679723GY', 25, y);
+            // Usar CUPS de gasCalculationParams
+            const gasParams = window.gasCalculationParams || {};
+            const cups = gasParams.cups || 'N/A';
+            doc.text(`CUPS: ${cups}`, 25, y);
             
             // Texto "COMERCIAL: <cz" en la esquina derecha
             doc.setTextColor(130, 140, 130);
@@ -24047,7 +24124,7 @@ ${clientName}
             doc.text(eur(bestResult.ahorro_anual) + tr('/ AÑO'), 15, y + 16);
             
             doc.save('GAS_PowerCup_' + tariffName + '_' + new Date().toISOString().slice(0,10) + '.pdf');
-            window.showMessageModal("✅ PDF POWER CUP generado", false);
+            window.showMessageModal("✅ PDF POWER CUP generado correctamente");
         }
         
         // PDF DUAL POWER CUP
@@ -24168,7 +24245,10 @@ ${clientName}
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(9);
             doc.text(tr('CLIENTE:') + ' ' + clientName, 25, y + 12);
-            doc.text('CUPS: ES0021000020679723GY', 25, y + 17);
+            // Usar CUPS de gasCalculationParams
+            const gasParams = window.gasCalculationParams || {};
+            const cups = gasParams.cups || 'N/A';
+            doc.text(`CUPS: ${cups}`, 25, y + 17);
             
             // Comercial en caja destacada (derecha)
             doc.setFillColor(240, 245, 240);
@@ -24359,7 +24439,7 @@ ${clientName}
             doc.roundedRect(leftX, leftY, colW, 18, 2, 2, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(7);
-            doc.text('[ES0021000020679723GY]', leftX + 3, leftY + 5);
+            doc.text(('[' + (window.gasCalculationParams && window.gasCalculationParams.cups ? window.gasCalculationParams.cups : 'N/A') + ']'), leftX + 3, leftY + 5);
             doc.text('Tipo: ' + currentGasTariff, leftX + colW - 3, leftY + 5, { align: 'right' });
             doc.text('Días: ' + dias, leftX + colW - 3, leftY + 10, { align: 'right' });
             doc.setFontSize(8);
@@ -24457,7 +24537,7 @@ ${clientName}
             doc.roundedRect(rightX, rightY, colW, 18, 2, 2, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(7);
-            doc.text('[ES0021000020679723GY]', rightX + 3, rightY + 5);
+            doc.text(('[' + (window.gasCalculationParams && window.gasCalculationParams.cups ? window.gasCalculationParams.cups : 'N/A') + ']'), rightX + 3, rightY + 5);
             doc.text('Tipo: ' + currentGasTariff, rightX + colW - 3, rightY + 5, { align: 'right' });
             doc.text('Días: ' + dias, rightX + colW - 3, rightY + 10, { align: 'right' });
             doc.setFontSize(8);
