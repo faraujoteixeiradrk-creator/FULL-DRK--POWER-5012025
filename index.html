@@ -65,6 +65,10 @@
         #interactive.viewport > video { width: 100%; height: 100%; object-fit: cover; }
         .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+            50% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(251, 191, 36, 0); }
+        }
         .mode-selector { border: 2px solid; }
 
         /* Estilos de los botones de selección de tarifa (Landing Page) */
@@ -2028,6 +2032,26 @@
             </div>
         </div>
         
+        <!-- 10.5 Solar Panels Question Modal (when no savings detected) -->
+        <div id="solar-question-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
+                <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-800 mb-3 text-center">¿Tienes instalación fotovoltaica?</h3>
+                <p class="text-slate-600 text-sm mb-6 text-center">Detectamos que tu tarifa actual es buena. Pero si tienes paneles solares, podríamos encontrar mejores opciones con compensación de excedentes.</p>
+                <div class="space-y-3">
+                    <button id="solar-yes-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Sí, tengo paneles solares
+                    </button>
+                    <button id="solar-no-btn" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-4 rounded-xl transition">
+                        No, no tengo instalación fotovoltaica
+                    </button>
+                </div>
+            </div>
+        </div>
+        
         <!-- 11. Modal de Dirección de Suministro (Multicups) -->
         <div id="supply-address-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full">
@@ -2198,6 +2222,10 @@
         };
         let currentTariffType = '2.0TD';
         let lastComparisonResult = null;
+        let tempNoSavingsResult = null; // Para guardar resultado cuando no hay ahorro y se pregunta por fotovoltaica
+        let skipDecisionModal = false; // Para saltar el modal de decisión cuando venimos del modal de fotovoltaica
+        let hideDecisionCheckboxes = false; // Para ocultar checkboxes en el modal cuando ya se introdujeron excedentes
+        let alreadyAskedAboutSolar = false; // Para no volver a preguntar por fotovoltaica en recálculos posteriores
         let lastIndexedResult = null; // Para almacenar el resultado de tarifa indexada
         let comparisonMode = 'drk_only';
         let compareWithIndexed = false; // Control para comparación con tarifas indexadas
@@ -2290,6 +2318,21 @@
             const secondaryBtn = document.getElementById('secondary-action-btn');
             if (secondaryBtn) secondaryBtn.classList.add('hidden');
             cleanupPasteCatcher();
+        };
+
+        // Funciones para modal de pregunta fotovoltaica
+        window.showSolarQuestionModal = (result) => {
+            console.log('🌞 Mostrando modal de pregunta fotovoltaica');
+            tempNoSavingsResult = result;
+            const modal = document.getElementById('solar-question-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.hideSolarQuestionModal = () => {
+            const modal = document.getElementById('solar-question-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         };
 
         function setModalContent(msg, title, isError) {
@@ -2565,6 +2608,21 @@
                     totalKwh: totalKwh,
                     dias: data.dias || 30
                 };
+                
+                // NUEVO: Añadir datos de excedentes solares si existen
+                if (finalResult?.solarSurplus && finalResult.solarSurplus.enabled) {
+                    supply.solarSurplus = {
+                        enabled: true,
+                        total: finalResult.solarSurplus.total || 0,
+                        excedente1: finalResult.solarSurplus.excedente1 || 0,
+                        excedente2: finalResult.solarSurplus.excedente2 || 0,
+                        excedente3: finalResult.solarSurplus.excedente3 || 0,
+                        pricePerKwh: finalResult.solarSurplus.pricePerKwh || 0,
+                        monthlyDiscount: finalResult.solarSurplus.monthlyDiscount || 0,
+                        annualDiscount: finalResult.solarSurplus.annualDiscount || 0
+                    };
+                    console.log('✅ Excedentes solares añadidos al suministro:', supply.solarSurplus);
+                }
             } else {
                 // Para gas, extraer correctamente los datos de finalResult
                 const energiaTotal = finalResult?.energia || finalResult?.total_energia || 0;
@@ -3897,8 +3955,8 @@
                 ieRate: IE_RATE
             };
             
-            // NUEVO: Aplicar descuento por excedentes solares si está habilitado y es tarifa 2.0TD
-            if (solarSurplusEnabled && tariffType === '2.0TD' && solarSurplusData.total > 0) {
+            // NUEVO: Aplicar descuento por excedentes solares si está habilitado y es tarifa 2.0TD o 3.0TD
+            if (solarSurplusEnabled && (tariffType === '2.0TD' || tariffType === '3.0TD') && solarSurplusData.total > 0) {
                 // CRÍTICO: Obtener el precio de excedentes de ESTA tarifa específica, no el global
                 let precioExcedentesEstaOFERTA = 0;
                 
@@ -3907,7 +3965,7 @@
                     precioExcedentesEstaOFERTA = parseFloat(tariff.excedentes) || 0;
                 }
                 
-                console.log(`☀️ Tarifa: ${tariff.name || 'N/A'} - Precio excedentes: ${precioExcedentesEstaOFERTA}`);
+                console.log(`☀️ Tarifa ${tariffType}: ${tariff.name || 'N/A'} - Precio excedentes: ${precioExcedentesEstaOFERTA}`);
                 
                 // Solo aplicar descuento si esta tarifa tiene precio de excedentes > 0
                 if (precioExcedentesEstaOFERTA > 0) {
@@ -4180,6 +4238,10 @@
                         // Mantener el branding según el modo seleccionado
                         brand = comparisonMode === 'overall_best' ? BRANDS.POWER_CUP : BRANDS.DRK;
                     }
+                } else {
+                    // HAY ahorro - asegurar que NO se solicite mejora automáticamente
+                    final.needsImprovementRequest = false;
+                    console.log('✅ Hay ahorro (' + final.savings.toFixed(2) + ' €) - NO se solicita mejora automáticamente');
                 }
                 // Add originalTariffType for consistent logic in HTML generation
                 final.originalTariffType = tariffType;
@@ -4208,14 +4270,80 @@
                 // PERO SOLO en modo individual, NO en MultiCups
                 const isMultiCupsMode = currentTariffType === 'MULTICUPS';
                 
-                if (!isMultiCupsMode && availableOffers.length > 1) {
-                    console.log('Showing decision modal with', availableOffers.length, 'offers');
+                // CRÍTICO: Mostrar modal si hay al menos 1 oferta con ahorro (cambio de >= 1 en lugar de > 1)
+                const hasOffersWithSavings = availableOffers.length >= 1 && final.savings > 0;
+                
+                console.log('🔍 DEBUG showOfferDecisionModal:', {
+                    isMultiCupsMode: isMultiCupsMode,
+                    availableOffersLength: availableOffers.length,
+                    finalSavings: final.savings,
+                    hasOffersWithSavings: hasOffersWithSavings,
+                    shouldShowModal: !isMultiCupsMode && hasOffersWithSavings,
+                    hasSolarSurplus: !!(final.solarSurplus && final.solarSurplus.enabled)
+                });
+                
+                if (!isMultiCupsMode && hasOffersWithSavings) {
+                    console.log('✅✅✅ MOSTRANDO MODAL DE DECISIÓN con', availableOffers.length, 'ofertas con ahorro');
+                    
+                    // Si venimos del modal de fotovoltaica, ocultar los checkboxes
+                    if (skipDecisionModal) {
+                        console.log('⚠️ Marcando flag para ocultar checkboxes (venimos de modal fotovoltaica con excedentes ya introducidos)');
+                        hideDecisionCheckboxes = true;
+                        skipDecisionModal = false; // Resetear flag
+                    }
+                    
                     showOfferDecisionModal();
                     return; // No mostrar resultados todavía, esperar decisión del usuario
                 }
                 
-                // Si es MultiCups, solo hay 1 oferta, o ninguna, mostrar resultados directamente
+                // Si es MultiCups, no hay ofertas, o no hay ahorro, mostrar resultados directamente
                 console.log('About to render UI...');
+                
+                // NUEVO: Si no hay ahorro y es 2.0TD/3.0TD, preguntar primero por fotovoltaica
+                const finalTariffType = final.tariffType || final.originalTariffType || currentTariffType;
+                const isTariff20or30 = finalTariffType === '2.0TD' || finalTariffType === '3.0TD';
+                
+                console.log('🔍 DEBUG Modal Fotovoltaica (compareOffers):', {
+                    savings: final.savings,
+                    savingsIsZeroOrLess: final.savings <= 0,
+                    tariffType: finalTariffType,
+                    isTariff20or30: isTariff20or30,
+                    hasSolarSurplus: !!(final.solarSurplus && final.solarSurplus.enabled),
+                    shouldShowModal: final.savings <= 0 && isTariff20or30 && !alreadyAskedAboutSolar && !(final.solarSurplus && final.solarSurplus.enabled)
+                });
+                
+                // CRÍTICO: Si ya hay excedentes solares en los datos, NO preguntar de nuevo
+                if (final.solarSurplus && final.solarSurplus.enabled) {
+                    console.log('✅ Excedentes solares ya presentes en datos - Saltando pregunta');
+                    alreadyAskedAboutSolar = true;
+                }
+                
+                if (final.savings <= 0 && isTariff20or30 && !alreadyAskedAboutSolar) {
+                    console.log(`🌞 Sin ahorro detectado en tarifa ${finalTariffType} - Preguntando por fotovoltaica (desde compareOffers)`);
+                    // Marcar que ya preguntamos
+                    alreadyAskedAboutSolar = true;
+                    // Guardar resultado y mostrar modal de pregunta
+                    tempNoSavingsResult = final;
+                    showSolarQuestionModal(final);
+                    // Ocultar pantallas iniciales pero NO mostrar results-view todavía
+                    document.getElementById('initial-view').classList.add('hidden');
+                    document.getElementById('scanner-view').classList.add('hidden');
+                    return; // Salir aquí, el modal manejará el resto
+                }
+                
+                console.log('📍 DEBUG antes de renderResultsUI en compareOffers:', {
+                    savings: final.savings,
+                    isNegativeSavings: final.isNegativeSavings,
+                    typeOfIsNegativeSavings: typeof final.isNegativeSavings
+                });
+                
+                // CRÍTICO: Corregir isNegativeSavings si es incorrecto
+                if (typeof final.isNegativeSavings === 'number' || final.isNegativeSavings === undefined) {
+                    console.warn('⚠️ COMPAREOFFERS: isNegativeSavings incorrecto:', final.isNegativeSavings, '- Corrigiendo...');
+                    final.isNegativeSavings = final.savings <= 0;
+                    console.log('✅ COMPAREOFFERS: isNegativeSavings corregido a:', final.isNegativeSavings);
+                }
+                
                 renderResultsUI(final);
                 
                 console.log('Showing results view...');
@@ -4906,12 +5034,20 @@
 
             // MODIFICACIÓN: Mostrar Nombre y Descripción.
             // Si el nombre es genérico ("Tu Mejor Elección"), solo mostramos el nombre en H2 y la descripción en el párrafo.
+            const isIndexTariff = offer.name && offer.name.includes('INDEX');
+            console.log('🔍 Detectando tarifa INDEX:', {
+                offerName: offer.name,
+                includesINDEX: offer.name?.includes('INDEX'),
+                isIndexTariff: isIndexTariff
+            });
+            const tariffNameSuffix = isIndexTariff ? ' (VARIABLE)' : '';
+            
             if (res.isMulti && res.savings > 0 && offer.name !== "Tu Tarifa Actual") {
-                document.getElementById('best-offer-name').textContent = offer.name;
+                document.getElementById('best-offer-name').textContent = offer.name + tariffNameSuffix;
                 document.getElementById('best-offer-desc').textContent = offer.description;
             } else {
                 // Opción 'Tu Tarifa Actual' o individual (mantiene el formato combinado)
-                document.getElementById('best-offer-name').textContent = `${offer.name || ''}`;
+                document.getElementById('best-offer-name').textContent = `${offer.name || ''}${tariffNameSuffix}`;
                 document.getElementById('best-offer-desc').textContent = offer.description;
             }
             
@@ -4925,7 +5061,9 @@
             oldCostPeriodEl.classList.remove('line-through', 'text-red-400', 'text-cta-green-500', 'decoration-red-400/50');
             oldCostAnnualEl.classList.remove('line-through', 'text-cta-red-500', 'text-cta-green-500', 'decoration-cta-red-500/50');
 
+            console.log('🔴 renderMultiResultsUI - Checking savings:', res.savings, '<= 0?', res.savings <= 0);
             if (res.savings <= 0) {
+                console.log('🔴🔴🔴 ENTRANDO EN ENHORABUENA (renderMultiResultsUI)');
                 // Mensaje especial cuando no hay ahorro
                 document.getElementById('savings-label').textContent = "¡ENHORABUENA!";
                 savingsEl.innerHTML = `<div class="text-lg leading-tight font-bold">${tr("Actualmente estás en una buena tarifa.")}</div><div class="text-sm mt-3 leading-relaxed">${tr("Seguiremos estudiando el mercado y te avisaremos cuando encontremos alguna tarifa que se adapte a tu perfil de consumo.")}</div>`;
@@ -5276,11 +5414,15 @@
                 // NUEVO: Añadir línea de excedentes solares según el estado
                 let solarSurplusLine = '';
                 if (resItem.solarSurplus) {
+                    const isIndexTariff = resItem.offer && resItem.offer.name && resItem.offer.name.includes('INDEX');
                     if (resItem.solarSurplus.enabled) {
                         // Tiene compensación y se aplicó descuento
                         const totalEx = resItem.solarSurplus.total;
                         const discount = resItem.solarSurplus.monthlyDiscount;
                         solarSurplusLine = `<div class="flex justify-between text-orange-600"><span>☀️ ${tr('Excedentes solares')} (${num(totalEx, 2)} kWh)</span><span>-${num(discount, 2)} €</span></div>`;
+                        if (isIndexTariff) {
+                            solarSurplusLine += `<div class="text-xs text-amber-600 italic mt-1">⚠️ ${tr('Excedentes liquidados a precio variable de mercado')}</div>`;
+                        }
                     } else if (resItem.solarSurplus.noPrice) {
                         // No tiene compensación
                         solarSurplusLine = `<div class="flex justify-between text-slate-400 italic text-xs"><span>☀️ ${tr('Excedentes solares')}</span><span>${tr('Sin compensación')}</span></div>`;
@@ -5573,7 +5715,21 @@
             
             // Si no hay resultado indexado, renderizar como siempre
             try {
-                console.log('renderResultsUI called with:', res);
+                console.log('🔍🔍🔍 renderResultsUI called with:', res);
+                console.log('🔍 DEBUG renderResultsUI - savings:', res.savings, 'type:', typeof res.savings);
+                console.log('🔍 DEBUG renderResultsUI - savings <= 0?', res.savings <= 0);
+                console.log('🔍 DEBUG renderResultsUI - offerName:', res.offer?.name);
+                
+                // CRÍTICO: Corregir isNegativeSavings si es un número en lugar de booleano
+                if (typeof res.isNegativeSavings === 'number') {
+                    console.warn('⚠️ isNegativeSavings es un número:', res.isNegativeSavings, '- Corrigiendo...');
+                    res.isNegativeSavings = res.savings <= 0;
+                    console.log('✅ isNegativeSavings corregido a:', res.isNegativeSavings);
+                } else if (res.isNegativeSavings === undefined && res.savings !== undefined) {
+                    console.warn('⚠️ isNegativeSavings es undefined - Calculando...');
+                    res.isNegativeSavings = res.savings <= 0;
+                    console.log('✅ isNegativeSavings calculado:', res.isNegativeSavings);
+                }
                 
                 const offer = res.offer;
                 const brand = activeBrand;
@@ -5639,7 +5795,15 @@
             `;
             
             // MODIFICACIÓN: Mostrar Comercializadora - Tarifa
-            document.getElementById('best-offer-name').textContent = `${offer.name || ''}`;
+            const isIndexTariff2 = offer.name && offer.name.includes('INDEX');
+            const tariffNameSuffix2 = isIndexTariff2 ? ' (VARIABLE)' : '';
+            console.log('🔍 Segunda ubicación - Detectando INDEX:', {
+                offerName: offer.name,
+                isIndexTariff2: isIndexTariff2,
+                tariffNameSuffix2: tariffNameSuffix2,
+                finalName: `${offer.name || ''}${tariffNameSuffix2}`
+            });
+            document.getElementById('best-offer-name').textContent = `${offer.name || ''}${tariffNameSuffix2}`;
             document.getElementById('best-offer-desc').textContent = offer.description;
             
             const savingsEl = document.getElementById('savings-estimate');
@@ -5652,7 +5816,16 @@
             oldCostPeriodEl.classList.remove('line-through', 'text-red-400', 'text-cta-green-500', 'decoration-red-400/50');
             oldCostAnnualEl.classList.remove('line-through', 'text-cta-red-500', 'text-cta-green-500', 'decoration-cta-red-500/50');
 
+            console.log('🟢 renderResultsUI - Checking isNegativeSavings:', res.isNegativeSavings, 'savings:', res.savings);
+            console.log('🟢 renderResultsUI - solarSurplus:', res.solarSurplus);
+            
             if (res.isNegativeSavings) {
+                console.log('🟢🟢🟢 ENTRANDO EN ENHORABUENA (renderResultsUI)');
+                console.log('Verificando si debería estar aquí con excedentes:', {
+                    hasSolarSurplus: !!(res.solarSurplus && res.solarSurplus.enabled),
+                    savings: res.savings,
+                    solarDiscount: res.solarSurplus?.annualDiscount || 0
+                });
                 // Mensaje especial cuando no hay ahorro
                 document.getElementById('savings-label').textContent = "¡ENHORABUENA!";
                 savingsEl.innerHTML = `<div class="text-lg leading-tight font-bold">${tr("Actualmente estás en una buena tarifa.")}</div><div class="text-sm mt-3 leading-relaxed">${tr("Seguiremos estudiando el mercado y te avisaremos cuando encontremos alguna tarifa que se adapte a tu perfil de consumo.")}</div>`;
@@ -5813,6 +5986,7 @@
                 });
                 
                 if (res.solarSurplus) {
+                    const isIndexTariff = res.offer && res.offer.name && res.offer.name.includes('INDEX');
                     if (res.solarSurplus.enabled) {
                         // Tiene compensación y se aplicó descuento
                         const totalEx = res.solarSurplus.total;
@@ -5824,6 +5998,9 @@
                             formatted: `-${num(discount, 2)} €`
                         });
                         energyBreakdown += `<div class="flex justify-between font-semibold" style="color: #f97316 !important; background-color: #fff7ed; padding: 4px 0; margin: 2px 0;"><span>☀️ ${tr('Excedentes solares')} (${num(totalEx, 2)} kWh)</span><span>-${num(discount, 2)} €</span></div>`;
+                        if (isIndexTariff) {
+                            energyBreakdown += `<div class="text-xs text-amber-600 italic mt-1 ml-2">⚠️ ${tr('Excedentes liquidados a precio variable de mercado')}</div>`;
+                        }
                         console.log('✅ Línea de excedentes añadida:', `${totalEx} kWh = -${discount} €`, 'HTML:', energyBreakdown.substring(energyBreakdown.length - 200));
                     } else if (res.solarSurplus.noPrice) {
                         // No tiene compensación
@@ -5905,26 +6082,30 @@
                     // NUEVO: Construir línea de excedentes solares según el estado
                     let excedentesHTML = '';
                     
-                    // Verificar si el checkbox de excedentes está marcado
-                    const solarCheckbox = document.getElementById('solar-surplus-checkbox');
-                    const isChecked = solarCheckbox && solarCheckbox.checked;
-                    
-                    if (isChecked) {
-                        if (res.solarSurplus && res.solarSurplus.enabled) {
-                            // Tiene precio de excedentes y se aplicó descuento
-                            const precioExcedente = res.solarSurplus.pricePerKwh;
-                            excedentesHTML = `
-                                <p class="text-slate-500 mt-2 col-span-2 font-bold text-orange-600">${tr('EXCEDENTES SOLARES')}</p>
-                                <p class="text-slate-500">☀️ ${tr('Compensación')}:</p>
-                                <p class="font-mono font-bold text-right text-orange-600">${numPriceFormula(precioExcedente)} €/kWh</p>
-                            `;
-                        } else if (res.solarSurplus && res.solarSurplus.noPrice) {
-                            // El checkbox está marcado pero esta tarifa NO tiene compensación
-                            excedentesHTML = `
-                                <p class="text-slate-500 mt-2 col-span-2 font-bold text-slate-400">${tr('EXCEDENTES SOLARES')}</p>
-                                <p class="text-slate-400 text-xs col-span-2 italic">⚠️ ${tr('Esta comercializadora no ofrece compensación')}</p>
-                            `;
-                        }
+                    // CRÍTICO: Verificar si hay datos de excedentes solares en el resultado
+                    // NO verificar el checkbox porque puede no estar marcado después del recálculo
+                    if (res.solarSurplus && res.solarSurplus.enabled) {
+                        // Tiene precio de excedentes y se aplicó descuento
+                        const precioExcedente = res.solarSurplus.pricePerKwh;
+                        const isIndexTariff = res.offer && res.offer.name && res.offer.name.includes('INDEX');
+                        
+                        // Advertencia especial para tarifas indexadas
+                        const warningHTML = isIndexTariff ? `
+                            <p class="text-orange-500 text-xs col-span-2 italic mt-1">⚠️ ${tr('Precio variable según mercado')}</p>
+                        ` : '';
+                        
+                        excedentesHTML = `
+                            <p class="text-slate-500 mt-2 col-span-2 font-bold text-orange-600">${tr('EXCEDENTES SOLARES')}</p>
+                            <p class="text-slate-500">☀️ ${tr('Compensación')}:</p>
+                            <p class="font-mono font-bold text-right text-orange-600">${numPriceFormula(precioExcedente)} €/kWh</p>
+                            ${warningHTML}
+                        `;
+                    } else if (res.solarSurplus && res.solarSurplus.noPrice) {
+                        // Hay excedentes marcados pero esta tarifa NO tiene compensación
+                        excedentesHTML = `
+                            <p class="text-slate-500 mt-2 col-span-2 font-bold text-slate-400">${tr('EXCEDENTES SOLARES')}</p>
+                            <p class="text-slate-400 text-xs col-span-2 italic">⚠️ ${tr('Esta comercializadora no ofrece compensación')}</p>
+                        `;
                     }
                     
                     preciosHTML = `
@@ -5960,6 +6141,29 @@
                         filasEnergia += `<p class="text-slate-500">E${i+1}:</p><p class="font-mono font-bold text-right">${numPriceFormula(res.energyCosts[i].price)}</p>`;
                     }
                     
+                    // NUEVO: Construir línea de excedentes solares para 3.0TD
+                    let excedentesHTML30 = '';
+                    if (res.solarSurplus && res.solarSurplus.enabled) {
+                        const precioExcedente = res.solarSurplus.pricePerKwh;
+                        const isIndexTariff = res.offer && res.offer.name && res.offer.name.includes('INDEX');
+                        
+                        const warningHTML = isIndexTariff ? `
+                            <p class="text-orange-500 text-xs col-span-2 md:col-span-4 italic mt-1">⚠️ ${tr('Precio variable según mercado')}</p>
+                        ` : '';
+                        
+                        excedentesHTML30 = `
+                            <div class="col-span-2 md:col-span-4 font-bold text-orange-600 mt-2 mb-1 border-t pt-2">${tr('EXCEDENTES SOLARES')}</div>
+                            <p class="text-slate-500">☀️ ${tr('Compensación')}:</p>
+                            <p class="font-mono font-bold text-right text-orange-600">${numPriceFormula(precioExcedente)} €/kWh</p>
+                            ${warningHTML}
+                        `;
+                    } else if (res.solarSurplus && res.solarSurplus.noPrice) {
+                        excedentesHTML30 = `
+                            <div class="col-span-2 md:col-span-4 font-bold text-slate-400 mt-2 mb-1 border-t pt-2">${tr('EXCEDENTES SOLARES')}</div>
+                            <p class="text-slate-400 text-xs col-span-2 md:col-span-4 italic">⚠️ ${tr('Esta comercializadora no ofrece compensación')}</p>
+                        `;
+                    }
+                    
                     preciosHTML = `
                         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm text-sm mb-6">
                             <h4 class="font-bold text-lg text-slate-800 mb-3">Precios de la Oferta Consolidada</h4>
@@ -5970,6 +6174,7 @@
                                     ${filasPotencia}
                                     <div class="col-span-2 md:col-span-4 font-bold text-green-600 mt-2 mb-1 border-t pt-2">${tr('ENERGÍA')} (€/kWh)</div>
                                     ${filasEnergia}
+                                    ${excedentesHTML30}
                                 </div>
                             </div>
                             <p class="text-xs text-slate-500 mt-2">*Los precios mostrados son de la oferta ganadora.</p>
@@ -6995,6 +7200,11 @@
                                         <td style="padding:5px;color:#f97316;font-weight:600;">☀️ ${tr('Excedentes solares')} (${(res.solarSurplus.total || 0).toFixed(2)} kWh)</td>
                                         <td align="right" style="padding:5px;color:#f97316;font-weight:bold;">-${(res.solarSurplus.monthlyDiscount || 0).toFixed(2)} €</td>
                                     </tr>
+                                    ${res.offer && res.offer.name && res.offer.name.includes('INDEX') ? `
+                                    <tr>
+                                        <td colspan="2" style="padding:5px 5px 5px 20px;color:#d97706;font-style:italic;font-size:10px;">⚠️ ${tr('Excedentes liquidados a precio variable de mercado')}</td>
+                                    </tr>
+                                    ` : ''}
                                     ` : res.solarSurplus && res.solarSurplus.noPrice ? `
                                     <tr>
                                         <td colspan="2" style="padding:5px;color:#9ca3af;font-style:italic;font-size:10px;">☀️ ${tr('Excedentes solares')} - ${tr('Sin compensación')}</td>
@@ -7573,7 +7783,8 @@
                     doc.setFont('helvetica', 'normal');
                     const comercializadora = res.offer.name || brand.NAME;
                     const nombreTarifa = res.offer.description || 'N/A';
-                    const nombreCompleto = `${comercializadora} - ${nombreTarifa}`;
+                    const isIndexPDF3 = comercializadora.includes('INDEX');
+                    const nombreCompleto = `${comercializadora}${isIndexPDF3 ? ' (VARIABLE)' : ''} - ${nombreTarifa}`;
                     doc.text(nombreCompleto, x + 3, y + 11);
                     
                     y += 16;
@@ -9869,7 +10080,9 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                         doc.setFont('helvetica', 'normal');
                         doc.text(`Días: ${res.dias_facturados || 30}`, x + colWidth - 3, y + 9, { align: 'right' });
                         doc.setFontSize(6);
-                        doc.text(res.offer.name || 'Tarifa', x + 3, y + 9);
+                        const offerNamePDF1 = res.offer.name || 'Tarifa';
+                        const isIndexPDF1 = offerNamePDF1.includes('INDEX');
+                        doc.text(offerNamePDF1 + (isIndexPDF1 ? ' (VARIABLE)' : ''), x + 3, y + 9);
                         y += 17;
                         
                         // Precios aplicados
@@ -10013,7 +10226,9 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                     doc.setFont('helvetica', 'normal');
                     doc.text(`Días: ${resActual.dias_facturados || 30}`, pageWidth - margin - 3, y + 9, { align: 'right' });
                     doc.setFontSize(6);
-                    doc.text(resActual.offer.name || 'Tarifa', margin + 3, y + 9);
+                    const offerNamePDF2 = resActual.offer.name || 'Tarifa';
+                    const isIndexPDF2 = offerNamePDF2.includes('INDEX');
+                    doc.text(offerNamePDF2 + (isIndexPDF2 ? ' (VARIABLE)' : ''), margin + 3, y + 9);
                     y += 17;
                     
                     // Precios aplicados
@@ -11934,6 +12149,17 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                         doc.text(`${tr('Excedentes solares')} (${num(totalEx, 2)} kWh)`, margin + 2, yPos);
                         doc.text(`-${num(discount, 2)} €`, pageWidth - margin - 2, yPos, { align: 'right' });
                         yPos += 5;
+                        
+                        // Añadir aviso si es tarifa INDEX
+                        const isIndexPDF = res.offer && res.offer.name && res.offer.name.includes('INDEX');
+                        if (isIndexPDF) {
+                            doc.setTextColor(217, 119, 6); // Amber-600
+                            doc.setFont('helvetica', 'italic');
+                            doc.setFontSize(6);
+                            doc.text(`⚠️ ${tr('Excedentes liquidados a precio variable de mercado')}`, margin + 5, yPos);
+                            yPos += 4;
+                            doc.setFontSize(8);
+                        }
                     } else if (res.solarSurplus && res.solarSurplus.noPrice) {
                         // Sin compensación
                         doc.setTextColor(150, 150, 150); // Gris
@@ -13315,11 +13541,15 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                 enabled: bd.solarSurplus?.enabled,
                 solarSurplusCompleto: bd.solarSurplus
             });
+            const isIndexTariff = bd.offer && bd.offer.name && bd.offer.name.includes('INDEX');
             if (bd.solarSurplus && bd.solarSurplus.enabled) {
                 const totalEx = bd.solarSurplus.total;
                 const discount = bd.solarSurplus.monthlyDiscount;
                 console.log('✅ EMAIL HTML - Añadiendo línea excedentes:', `${totalEx} kWh = -${discount} €`);
                 solarSurplusRow = `<tr><td style="${rowLabel} font-family: monospace; font-size: 12px; color: #f97316;">${tr('Excedentes solares')} (${num(totalEx, 2)} kWh)</td><td style="${rowValue} font-family: monospace; font-size: 12px; color: #f97316; white-space: nowrap;">-${num(discount, 2)} €</td></tr>`;
+                if (isIndexTariff) {
+                    solarSurplusRow += `<tr><td colspan="2" style="padding: 2px 8px 4px 20px; font-size: 10px; color: #d97706; font-style: italic;">⚠️ ${tr('Excedentes liquidados a precio variable de mercado')}</td></tr>`;
+                }
             } else if (bd.solarSurplus && bd.solarSurplus.noPrice) {
                 solarSurplusRow = `<tr><td colspan="2" style="padding: 4px 8px; font-size: 10px; color: #9ca3af; font-style: italic;">${tr('Excedentes solares')} - ${tr('Sin compensación')}</td></tr>`;
             }
@@ -13598,10 +13828,14 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                 
                 // NUEVO: Añadir línea de excedentes solares si está habilitado
                 let solarSurplusRow = '';
+                const isIndexTariff = resItem.offer && resItem.offer.name && resItem.offer.name.includes('INDEX');
                 if (resItem.solarSurplus && resItem.solarSurplus.enabled) {
                     const totalEx = resItem.solarSurplus.total;
                     const discount = resItem.solarSurplus.monthlyDiscount;
                     solarSurplusRow = `<tr><td style="padding: 5px 8px; font-family: monospace; font-size: 11px; color: #f97316;">${tr('Excedentes solares')} (${num(totalEx, 2)} kWh)</td><td style="padding: 5px 8px; font-family: monospace; font-size: 11px; font-weight: bold; color: #f97316; text-align: right; white-space: nowrap;">-${num(discount, 2)} €</td></tr>`;
+                    if (isIndexTariff) {
+                        solarSurplusRow += `<tr><td colspan="2" style="padding: 2px 8px 4px 20px; font-size: 10px; color: #d97706; font-style: italic;">⚠️ ${tr('Excedentes liquidados a precio variable de mercado')}</td></tr>`;
+                    }
                 } else if (resItem.solarSurplus && resItem.solarSurplus.noPrice) {
                     solarSurplusRow = `<tr><td colspan="2" style="padding: 4px 8px; font-size: 10px; color: #9ca3af; font-style: italic;">${tr('Excedentes solares')} - ${tr('Sin compensación')}</td></tr>`;
                 }
@@ -14114,6 +14348,12 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
         // --- NUEVO: Modal de Decisión (Mejor vs Elegir) ---
         
         function showOfferDecisionModal() {
+            // CRÍTICO: Log inmediato del estado de hideDecisionCheckboxes
+            console.log('🔍🔍🔍 showOfferDecisionModal LLAMADA');
+            console.log('Estado de hideDecisionCheckboxes:', hideDecisionCheckboxes);
+            console.log('Stack trace:');
+            console.trace();
+            
             document.getElementById('loading-status').classList.add('hidden');
             document.getElementById('offer-decision-modal').classList.remove('hidden');
             document.getElementById('offer-decision-modal').classList.add('flex');
@@ -14130,7 +14370,20 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             const checkboxContainer = document.getElementById('powercup-indexed-comparison-checkbox');
             const isDualMode = window.dualMode === true;
             
-            if (window.optimizedPowerEnabled || isDualMode) {
+            // CRÍTICO DEBUG: Log del estado de hideDecisionCheckboxes
+            console.log('🔍 showOfferDecisionModal() - Estado de flags:', {
+                hideDecisionCheckboxes: hideDecisionCheckboxes,
+                isDualMode: isDualMode,
+                optimizedPowerEnabled: window.optimizedPowerEnabled
+            });
+            
+            // CRÍTICO: Si hideDecisionCheckboxes está activo, forzar ocultar AMBOS checkboxes Y saltar lógica restante
+            if (hideDecisionCheckboxes) {
+                console.log('🚫 Ocultando AMBOS checkboxes (excedentes ya introducidos desde modal fotovoltaica)');
+                checkboxContainer?.classList.add('hidden');
+                document.getElementById('solar-surplus-checkbox-container')?.classList.add('hidden');
+                // NO resetear aquí - se reseteará al final
+            } else if (window.optimizedPowerEnabled || isDualMode) {
                 if (isDualMode) {
                     console.log('🔄 Modo DUAL activo - Ocultando checkbox Fijo & Indexado');
                 } else {
@@ -14149,46 +14402,55 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             }
             
             // NUEVO: Mostrar/Ocultar checkbox de Excedentes Solares solo para tarifa 2.0TD
-            const solarSurplusContainer = document.getElementById('solar-surplus-checkbox-container');
-            const solarCheckbox = document.getElementById('solar-surplus-checkbox');
-            
-            console.log('🔍 Verificando visibilidad de Excedentes Solares:', {
-                currentTariffType: currentTariffType,
-                isDualMode: isDualMode,
-                shouldShow: currentTariffType === '2.0TD' && !isDualMode
-            });
-            
-            if (currentTariffType === '2.0TD' && !isDualMode) {
-                console.log('☀️ Tarifa 2.0TD detectada - Mostrando checkbox de Excedentes Solares');
-                solarSurplusContainer?.classList.remove('hidden');
-                // CRÍTICO: Resetear checkbox a desmarcado cada vez que se abre el modal
-                if (solarCheckbox) {
-                    solarCheckbox.checked = false;
-                    solarSurplusEnabled = false;
-                    // Ocultar campos y resetear valores
-                    document.getElementById('solar-surplus-fields')?.classList.add('hidden');
-                    document.getElementById('excedente-kwh-1').value = '0';
-                    document.getElementById('excedente-kwh-2').value = '0';
-                    document.getElementById('excedente-kwh-3').value = '0';
-                    document.getElementById('solar-surplus-summary')?.classList.add('hidden');
-                    // Resetear datos globales
-                    solarSurplusData = {
-                        excedente1: 0,
-                        excedente2: 0,
-                        excedente3: 0,
-                        total: 0,
-                        discount: 0,
-                        pricePerKwh: 0
-                    };
+            // PERO NO si hideDecisionCheckboxes está activo (ya se ocultó arriba)
+            if (!hideDecisionCheckboxes) {
+                const solarSurplusContainer = document.getElementById('solar-surplus-checkbox-container');
+                const solarCheckbox = document.getElementById('solar-surplus-checkbox');
+                
+                console.log('🔍 Verificando visibilidad de Excedentes Solares:', {
+                    currentTariffType: currentTariffType,
+                    isDualMode: isDualMode,
+                    shouldShow: (currentTariffType === '2.0TD' || currentTariffType === '3.0TD') && !isDualMode
+                });
+                
+                if ((currentTariffType === '2.0TD' || currentTariffType === '3.0TD') && !isDualMode) {
+                    console.log(`☀️ Tarifa ${currentTariffType} detectada - Mostrando checkbox de Excedentes Solares`);
+                    solarSurplusContainer?.classList.remove('hidden');
+                    // CRÍTICO: Resetear checkbox a desmarcado cada vez que se abre el modal
+                    if (solarCheckbox) {
+                        solarCheckbox.checked = false;
+                        solarSurplusEnabled = false;
+                        // Ocultar campos y resetear valores
+                        document.getElementById('solar-surplus-fields')?.classList.add('hidden');
+                        document.getElementById('excedente-kwh-1').value = '0';
+                        document.getElementById('excedente-kwh-2').value = '0';
+                        document.getElementById('excedente-kwh-3').value = '0';
+                        document.getElementById('solar-surplus-summary')?.classList.add('hidden');
+                        // Resetear datos globales
+                        solarSurplusData = {
+                            excedente1: 0,
+                            excedente2: 0,
+                            excedente3: 0,
+                            total: 0,
+                            discount: 0,
+                            pricePerKwh: 0
+                        };
+                    }
+                } else {
+                    console.log('❌ No es tarifa 2.0TD o es modo DUAL - Ocultando Excedentes Solares');
+                    solarSurplusContainer?.classList.add('hidden');
+                    // Reset checkbox and fields
+                    if (solarCheckbox) {
+                        solarCheckbox.checked = false;
+                        toggleSolarSurplus(false);
+                    }
                 }
-            } else {
-                console.log('❌ No es tarifa 2.0TD o es modo DUAL - Ocultando Excedentes Solares');
-                solarSurplusContainer?.classList.add('hidden');
-                // Reset checkbox and fields
-                if (solarCheckbox) {
-                    solarCheckbox.checked = false;
-                    toggleSolarSurplus(false);
-                }
+            }
+            
+            // Resetear flag después de toda la lógica de checkboxes
+            if (hideDecisionCheckboxes) {
+                hideDecisionCheckboxes = false;
+                console.log('✅ Flag hideDecisionCheckboxes reseteada');
             }
             
             // NUEVO: Actualizar textos y colores del selector según la marca activa
@@ -14354,33 +14616,57 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             isProcessingBestOption = true;
             console.log('✅ Bandera isProcessingBestOption activada');
             
-            // NUEVO: Si hay excedentes solares marcados, recalcular todas las ofertas primero
+            // ====================================================================
+            // NUEVO: DETECCIÓN DE EXCEDENTES SOLARES Y RECÁLCULO COMPLETO
+            // ====================================================================
             const solarCheckbox = document.getElementById('solar-surplus-checkbox');
-            if (solarCheckbox && solarCheckbox.checked && solarSurplusEnabled && solarSurplusData.total > 0) {
-                console.log('☀️ Excedentes solares marcados - Recalculando ofertas...');
+            const hasSolarSurplus = solarCheckbox && solarCheckbox.checked && solarSurplusEnabled && solarSurplusData.total > 0;
+            
+            if (hasSolarSurplus) {
+                console.log('☀️☀️☀️ EXCEDENTES SOLARES DETECTADOS - Iniciando recálculo completo');
+                console.log('Datos de excedentes:', solarSurplusData);
                 
-                // Recalcular availableOffers con el descuento de excedentes
-                const tariffType = currentTariffType;
-                let tariffsToCompare = currentTariffs[tariffType] || [];
+                // CRÍTICO: Activar flags para ocultar checkboxes en el próximo modal
+                alreadyAskedAboutSolar = false; // Permitir que el flujo continúe normalmente
+                skipDecisionModal = true; // ✅ ACTIVAR para que compareOffers active hideDecisionCheckboxes
                 
-                // CRÍTICO: Filtrar según el modo de comparación (comparisonMode)
-                console.log(`🔍 Modo de comparación actual: ${comparisonMode}`);
-                if (comparisonMode === 'drk_only') {
-                    // En modo DRK ÚNICAMENTE, solo calcular tarifas DRK
-                    tariffsToCompare = tariffsToCompare.filter(t => t.isDrk === true);
-                    console.log(`🔵 DRK ÚNICAMENTE: Filtrando solo tarifas DRK (${tariffsToCompare.length} de ${currentTariffs[tariffType].length})`);
+                // TAMBIÉN activar directamente hideDecisionCheckboxes por si acaso
+                hideDecisionCheckboxes = true;
+                console.log('✅ Flags activados - Los checkboxes se ocultarán en el modal:', {
+                    skipDecisionModal: skipDecisionModal,
+                    hideDecisionCheckboxes: hideDecisionCheckboxes
+                });
+                
+                // CRÍTICO: Cerrar el modal de decisión
+                closeOfferDecisionModal();
+                
+                // IMPORTANTE: Recalcular COMPLETAMENTE usando compareOffers
+                // Esto asegura que todo el flujo se ejecute correctamente
+                if (lastComparisonResult) {
+                    console.log('🔄 Ejecutando compareOffers() con excedentes solares...');
+                    
+                    // Asegurarnos de que los datos de excedentes estén en lastComparisonResult
+                    lastComparisonResult.solarSurplus = {
+                        enabled: true,
+                        excedente1: solarSurplusData.excedente1,
+                        excedente2: solarSurplusData.excedente2,
+                        excedente3: solarSurplusData.excedente3,
+                        total: solarSurplusData.total,
+                        pricePerKwh: solarSurplusData.pricePerKwh
+                    };
+                    
+                    // Resetear bandera ANTES de llamar a compareOffers
+                    isProcessingBestOption = false;
+                    
+                    // Llamar a compareOffers para recalcular TODO
+                    compareOffers(lastComparisonResult);
+                    return; // SALIR aquí - compareOffers manejará el resto del flujo
                 } else {
-                    // En modo POWER CUP o DRK PRIORITARIO, calcular todas las tarifas
-                    console.log(`🟢 POWER CUP/DRK PRIORITARIO: Calculando todas las tarifas (${tariffsToCompare.length})`);
+                    console.error('❌ No hay lastComparisonResult disponible para recalcular');
+                    window.showErrorModal('Error: No se pueden aplicar los excedentes solares. Por favor, intente de nuevo.');
+                    isProcessingBestOption = false;
+                    return;
                 }
-                
-                availableOffers = tariffsToCompare.map(tariff => {
-                    const result = calculateTariffCost(tariff, lastComparisonResult || {}, tariffType);
-                    // calculateTariffCost ya aplica el descuento de excedentes automáticamente
-                    return result;
-                }).filter(r => r.savings > 0);
-                
-                console.log(`✅ Ofertas recalculadas con excedentes: ${availableOffers.length} ofertas con ahorro positivo`);
             }
             
             console.log('Elección:', bestOptionTariffChoice);
@@ -16267,6 +16553,9 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                 console.log('Energy costs periods:', combinedResult.energyCosts.length);
                 console.log('Power costs periods:', combinedResult.powerCosts.length);
                 
+                // CRÍTICO: Usar combinedResult como el resultado final
+                result = combinedResult;
+                
                 // IMPORTANTE: Si compareWithIndexed está activo, calcular resultado indexado ANTES de añadir a la lista
                 if (compareWithIndexed) {
                     const tariffType = lastComparisonResult.originalTariffType;
@@ -16328,6 +16617,12 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             } else {
                 // Contexto individual: Mostrar resultados
                 console.log('Individual context, showing results');
+                
+                // CRÍTICO: Recalcular isNegativeSavings basado en savings actual
+                if (result.savings !== undefined && result.savings !== null) {
+                    result.isNegativeSavings = result.savings <= 0;
+                    console.log('✅ isNegativeSavings recalculado:', result.isNegativeSavings, 'basado en savings:', result.savings);
+                }
                 
                 // CRÍTICO: Aplicar branding según el modo de comparación
                 // Si el usuario eligió "POWER CUP Global", SIEMPRE usar POWER CUP
@@ -16429,7 +16724,42 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                     renderDualComparisonUI(result, indexedResult);
                 } else {
                     // Mostrar resultados normales
-                    renderResultsUI(result);
+                    // NUEVO: Si no hay ahorro y es 2.0TD/3.0TD, preguntar primero por fotovoltaica
+                    const tariffType = result.tariffType || result.originalTariffType || currentTariffType;
+                    const isTariff20or30 = tariffType === '2.0TD' || tariffType === '3.0TD';
+                    
+                    console.log('🔍 DEBUG Modal Fotovoltaica:', {
+                        savings: result.savings,
+                        savingsIsZeroOrLess: result.savings <= 0,
+                        tariffType: tariffType,
+                        isTariff20or30: isTariff20or30,
+                        alreadyAsked: alreadyAskedAboutSolar,
+                        shouldShowModal: result.savings <= 0 && isTariff20or30 && !alreadyAskedAboutSolar
+                    });
+                    
+                    if (result.savings <= 0 && isTariff20or30 && !alreadyAskedAboutSolar) {
+                        console.log(`🌞 Sin ahorro detectado en tarifa ${tariffType} - Preguntando por fotovoltaica`);
+                        // Marcar que ya preguntamos
+                        alreadyAskedAboutSolar = true;
+                        // Guardar resultado y mostrar modal de pregunta
+                        tempNoSavingsResult = result;
+                        showSolarQuestionModal(result);
+                        // NO mostrar results-view todavía, esperar respuesta del modal
+                        document.getElementById('loading-status').classList.add('hidden');
+                        document.getElementById('initial-view').classList.add('hidden');
+                        document.getElementById('scanner-view').classList.add('hidden');
+                        return; // Salir aquí, el modal manejará el resto
+                    } else {
+                        console.log('📊 Mostrando resultados normalmente (con ahorro o no es 2.0TD/3.0TD)');
+                        console.log('🔍 DEBUG antes de renderResultsUI:', {
+                            savings: result.savings,
+                            isNegativeSavings: result.isNegativeSavings,
+                            tariffType: result.tariffType || result.originalTariffType,
+                            offerName: result.offer?.name
+                        });
+                        // Hay ahorro, o no es 2.0TD/3.0TD, mostrar resultados normalmente
+                        renderResultsUI(result);
+                    }
                 }
                 
                 console.log('Hiding initial-view and showing results-view');
@@ -16657,6 +16987,102 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             
             document.getElementById('execute-send-offer-btn').addEventListener('click', handleCopyOffer);
             document.getElementById('execute-pdf-offer-btn').addEventListener('click', handleGeneratePDF);
+            
+            // NUEVO: Event listeners para modal de pregunta fotovoltaica
+            document.getElementById('solar-yes-btn')?.addEventListener('click', () => {
+                console.log('✅ Usuario tiene fotovoltaica - Solicitando kWh de excedentes');
+                hideSolarQuestionModal();
+                
+                // Abrir un prompt simple para introducir excedentes
+                const tariffType = tempNoSavingsResult?.tariffType || tempNoSavingsResult?.originalTariffType || '2.0TD';
+                const is30TD = tariffType === '3.0TD';
+                
+                let promptText = '🌞 Introduce los kWh de excedentes solares por periodo.\n\nPuedes poner 0 si no tienes excedentes en ese periodo.\n\nPunta (P1):';
+                const ex1Input = prompt(promptText, '0');
+                
+                // Si cancela en el primero, volver a mostrar modal
+                if (ex1Input === null) {
+                    showSolarQuestionModal(tempNoSavingsResult);
+                    return;
+                }
+                
+                const ex1 = parseFloat(ex1Input) || 0;
+                
+                promptText = 'Llano (P2):';
+                const ex2Input = prompt(promptText, '0');
+                const ex2 = ex2Input === null ? 0 : (parseFloat(ex2Input) || 0);
+                
+                promptText = 'Valle (P3):';
+                const ex3Input = prompt(promptText, '0');
+                const ex3 = ex3Input === null ? 0 : (parseFloat(ex3Input) || 0);
+                
+                // Guardar los excedentes
+                solarSurplusData.excedente1 = ex1;
+                solarSurplusData.excedente2 = ex2;
+                solarSurplusData.excedente3 = ex3;
+                solarSurplusData.total = ex1 + ex2 + ex3;
+                
+                console.log('💡 Excedentes introducidos:', solarSurplusData);
+                
+                if (solarSurplusData.total > 0) {
+                    // Activar excedentes y recalcular
+                    solarSurplusEnabled = true;
+                    
+                    // CRÍTICO: Activar hideDecisionCheckboxes para ocultar checkboxes en el modal de decisión
+                    hideDecisionCheckboxes = true;
+                    console.log('✅ hideDecisionCheckboxes activado - Los checkboxes se ocultarán en el modal de decisión');
+                    
+                    // CRÍTICO: NO activar skipDecisionModal - queremos que el usuario vea el modal de decisión
+                    // skipDecisionModal = true; // ❌ ELIMINADO - causaba que se saltara el modal
+                    console.log('✅ Excedentes activados - El modal de decisión se mostrará normalmente');
+                    
+                    // Obtener los datos de la factura original
+                    const data = tempNoSavingsResult;
+                    
+                    // Recalcular con excedentes
+                    console.log('🔄 Recalculando con excedentes...');
+                    compareOffers(data);
+                } else {
+                    console.log('⚠️ Total de excedentes = 0, mostrando resultado sin excedentes');
+                    // No introdujo excedentes, mostrar resultado original
+                    renderResultsUI(tempNoSavingsResult);
+                    document.getElementById('results-view').classList.remove('hidden');
+                    document.getElementById('results-view').classList.add('animate-fade-in-up');
+                }
+            });
+            
+            document.getElementById('solar-no-btn')?.addEventListener('click', () => {
+                console.log('❌ Usuario NO tiene fotovoltaica');
+                hideSolarQuestionModal();
+                
+                // CRÍTICO: Verificar si estamos en modo DUAL
+                const isDualMode = window.dualMode === true;
+                console.log('🔍 Modo DUAL activo:', isDualMode);
+                
+                if (isDualMode) {
+                    // MODO DUAL: Continuar con el flujo normal, mostrar modal de decisión
+                    console.log('🔄 Modo DUAL - Continuando con modal de decisión (aunque sea negativo)');
+                    
+                    if (tempNoSavingsResult) {
+                        // Asegurar que el resultado tenga isNegativeSavings marcado
+                        tempNoSavingsResult.isNegativeSavings = true;
+                        tempNoSavingsResult.savings = tempNoSavingsResult.originalBillAnnual - tempNoSavingsResult.totalAnnual;
+                        
+                        // IMPORTANTE: En DUAL necesitamos el modal de decisión incluso sin ahorro
+                        // para poder continuar añadiendo suministros
+                        showOfferDecisionModal();
+                    }
+                } else {
+                    // MODO INDIVIDUAL: Mostrar página de Enhorabuena
+                    console.log('👤 Modo INDIVIDUAL - Mostrando página Enhorabuena');
+                    if (tempNoSavingsResult) {
+                        renderResultsUI(tempNoSavingsResult);
+                        // Mostrar la pantalla de resultados
+                        document.getElementById('results-view').classList.remove('hidden');
+                        document.getElementById('results-view').classList.add('animate-fade-in-up');
+                    }
+                }
+            });
             
             // NUEVO: Event listeners para solicitar mejora a DRK
             document.getElementById('request-improvement-btn').onclick = () => {
@@ -18179,6 +18605,20 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
         
         function handleQRRead(raw) {
             stopScanner();
+            
+            // CRÍTICO: Resetear variables de estado al analizar nueva factura
+            alreadyAskedAboutSolar = false;
+            solarSurplusEnabled = false;
+            solarSurplusData = {
+                excedente1: 0,
+                excedente2: 0,
+                excedente3: 0,
+                total: 0,
+                discount: 0,
+                pricePerKwh: 0
+            };
+            console.log('🔄 Variables de estado reseteadas para nueva factura');
+            
             const p = {};
             raw.split('&').forEach(part => {  
                 let [key, ...rest] = part.split('=');
@@ -18835,6 +19275,25 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
         }
 
         function goToElectricidad() {
+            console.log('🔵 Iniciando nuevo estudio de ELECTRICIDAD');
+            
+            // CRÍTICO: Resetear TODOS los flags y datos para evitar caché
+            alreadyAskedAboutSolar = false;
+            skipDecisionModal = false;
+            hideDecisionCheckboxes = false;
+            solarSurplusEnabled = false;
+            solarSurplusData = {
+                excedente1: 0,
+                excedente2: 0,
+                excedente3: 0,
+                total: 0,
+                discount: 0,
+                pricePerKwh: 0
+            };
+            tempNoSavingsResult = null;
+            
+            console.log('✅ Flags y caché limpiados para nuevo estudio');
+            
             // Desactivar modo DUAL (solo activo cuando se navega desde dualSelectTariff)
             window.dualMode = false;
             checkDualMode(); // Actualizar visibilidad del botón DUAL
@@ -18904,6 +19363,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             console.log('- lastIndexedResult:', lastIndexedResult);
             console.log('- availableOffers:', availableOffers.length);
             console.log('- dualMode:', window.dualMode);
+            console.log('- solarSurplusData:', solarSurplusData);
             
             // CRÍTICO: Activar modo DUAL
             window.dualMode = true;
@@ -18915,6 +19375,21 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             availableOffers = [];
             compareWithIndexed = false;
             
+            // NUEVO: Limpiar TODOS los datos de excedentes solares del suministro anterior
+            alreadyAskedAboutSolar = false;
+            solarSurplusEnabled = false;
+            solarSurplusData = {
+                excedente1: 0,
+                excedente2: 0,
+                excedente3: 0,
+                total: 0,
+                discount: 0,
+                pricePerKwh: 0
+            };
+            tempNoSavingsResult = null;
+            
+            console.log('✅ Datos de excedentes solares limpiados');
+            
             // Limpiar el checkbox de comparación
             const checkbox = document.getElementById('compare-indexed-checkbox');
             if (checkbox) {
@@ -18925,6 +19400,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
             console.log('- dualTempSupply:', dualTempSupply);
             console.log('- lastComparisonResult:', lastComparisonResult);
             console.log('- dualMode:', window.dualMode);
+            console.log('- solarSurplusData:', solarSurplusData);
             console.log('=== FIN limpieza - estado listo para nuevo suministro ===');
             
             hideAllScreens();
@@ -19274,6 +19750,18 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                                 const eb = s.electricityBreakdown;
                                 const totalKwh = eb.energyCosts?.reduce((sum, e) => sum + (e.kwh || 0), 0) || 0;
                                 
+                                // NUEVO: Línea de excedentes solares si están presentes
+                                let solarSurplusRow = '';
+                                if (s.solarSurplus && s.solarSurplus.enabled && s.solarSurplus.total > 0) {
+                                    const monthlyDiscount = s.solarSurplus.monthlyDiscount || 0;
+                                    solarSurplusRow = `
+                                        <div class="flex justify-between text-orange-600">
+                                            <span>☀️ ${tr('Excedentes solares')} (${s.solarSurplus.total} kWh)</span>
+                                            <span>-${formatEuro(monthlyDiscount)}</span>
+                                        </div>
+                                    `;
+                                }
+                                
                                 return `
                                 <div class="bg-white rounded-lg p-3 border border-slate-200">
                                     <div class="flex items-center justify-between mb-2">
@@ -19295,6 +19783,7 @@ Destinatarios: F.araujo@drk.es, rguerra@drk.es, l.grande@drk.es
                                             <span>${tr('Energía')} (${totalKwh.toFixed(0)} kWh)</span>
                                             <span>${formatEuro(eb.subEnergy)}</span>
                                         </div>
+                                        ${solarSurplusRow}
                                         <div class="flex justify-between">
                                             <span>${tr('Imp. eléctrico (5.113%)')}</span>
                                             <span>${formatEuro(eb.costIE)}</span>
@@ -21206,6 +21695,21 @@ ${clientName}
                             doc.text(`E${i}: ${eVal.toFixed(6)} EUR/kWh`, xPos, potY);
                         }
                         
+                        // NUEVO: Añadir línea de excedentes solares si están presentes
+                        if (supply.solarSurplus && supply.solarSurplus.enabled && supply.solarSurplus.total > 0) {
+                            potY += 5;
+                            doc.setFont('helvetica', 'bold');
+                            doc.setTextColor(255, 140, 0); // Naranja
+                            doc.text(tr('EXCEDENTES SOLARES:'), margin + 8, potY);
+                            doc.setFont('helvetica', 'normal');
+                            
+                            const precioExcedente = supply.solarSurplus.pricePerKwh || 0;
+                            const isIndexTariff = tarifaCompleta && tarifaCompleta.includes('INDEX');
+                            const advertencia = isIndexTariff ? ` (${tr('precio variable')})` : '';
+                            
+                            doc.text(`☀️ ${tr('Compensacion')}: ${precioExcedente.toFixed(6)} EUR/kWh${advertencia}`, margin + 30, potY);
+                        }
+                        
                     } else {
                         const termFijo = (offerData && offerData.p_fijo_diario) ? offerData.p_fijo_diario : 0;
                         const energia = (offerData && offerData.p1_price) ? offerData.p1_price : 0;
@@ -21349,6 +21853,20 @@ ${clientName}
                                     yPos += 6;
                                 }
                             });
+                            
+                            // NUEVO: Añadir línea de excedentes solares si están presentes
+                            if (supply.solarSurplus && supply.solarSurplus.enabled && supply.solarSurplus.total > 0) {
+                                doc.setFontSize(8);
+                                doc.setTextColor(255, 140, 0); // Naranja
+                                doc.setFont('helvetica', 'normal');
+                                const monthlyDiscount = supply.solarSurplus.monthlyDiscount || 0;
+                                const precioExcedente = supply.solarSurplus.pricePerKwh || 0;
+                                const label = `☀️ ${tr('Excedentes solares')} (${supply.solarSurplus.total} kWh x ${precioExcedente.toFixed(6)} EUR/kWh)`;
+                                doc.text(label, margin + 5, yPos + 4);
+                                doc.setFont('helvetica', 'bold');
+                                doc.text(`-${eur(monthlyDiscount)}`, pageWidth - margin - 5, yPos + 4, { align: 'right' });
+                                yPos += 6;
+                            }
                         } else {
                             doc.setFontSize(8);
                             doc.setTextColor(150, 150, 150);
@@ -27232,6 +27750,7 @@ ${clientName}
                 // Excedentes Solares
                 "☀️ Excedentes solares": { en: "☀️ Solar surplus", zh: "☀️ 太阳能盈余", de: "☀️ Solarüberschuss", fr: "☀️ Excédent solaire" },
                 "Excedentes solares": { en: "Solar surplus", zh: "太阳能盈余", de: "Solarüberschuss", fr: "Excédent solaire" },
+                "Excedentes liquidados a precio variable de mercado": { en: "Surplus settled at variable market price", zh: "按市场浮动价格结算盈余", de: "Überschuss zu variablem Marktpreis abgerechnet", fr: "Excédent réglé au prix variable du marché" },
                 "Calcula el descuento por compensación de excedentes de energía solar.": { en: "Calculate the discount for solar energy surplus compensation.", zh: "计算太阳能盈余补偿的折扣。", de: "Berechnen Sie den Rabatt für die Vergütung von Solarüberschuss.", fr: "Calculer la remise pour la compensation de l'excédent d'énergie solaire." },
                 "☀️ Excedente kWh 1": { en: "☀️ Surplus kWh 1", zh: "☀️ 盈余 kWh 1", de: "☀️ Überschuss kWh 1", fr: "☀️ Excédent kWh 1" },
                 "☀️ Excedente kWh 2": { en: "☀️ Surplus kWh 2", zh: "☀️ 盈余 kWh 2", de: "☀️ Überschuss kWh 2", fr: "☀️ Excédent kWh 2" },
