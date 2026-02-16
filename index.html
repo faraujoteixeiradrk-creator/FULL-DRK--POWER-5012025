@@ -647,7 +647,7 @@
                     <p class="text-slate-500 mb-6 text-center" id="gas-results-subtitle">Comparativa de tarifas</p>
                     
                     <!-- Contenedor de resultados -->
-                    <div id="gas-results-container" class="mt-6">
+                    <div id="gas-results-container" class="mt-6 max-h-[70vh] overflow-y-auto pr-2">
                         <!-- Los resultados se insertarán aquí -->
                     </div>
                     
@@ -1956,8 +1956,7 @@
                         <p class="text-sm font-mono" id="modal-selection-cups"></p>
                     </div>
                     
-                    <!-- NUEVO: Controles de Filtrado y Ordenación -->
-                    <div class="bg-white border-2 border-drk-200 rounded-xl p-4 mb-4">
+                    <!-- NUEVO: Controles de Filtrado y Ordenación -->\n                    <div class="bg-white border-2 border-drk-200 rounded-xl p-4 mb-4">
                         <div class="flex flex-col md:flex-row gap-3">
                             <!-- Filtro por nombre -->
                             <div class="flex-1">
@@ -1984,6 +1983,28 @@
                                     <option value="name_asc">🔤 Nombre (A-Z)</option>
                                     <option value="name_desc">🔤 Nombre (Z-A)</option>
                                 </select>
+                            </div>
+                        </div>
+                        
+                        <!-- NUEVO: Filtros por tipo de cliente (PARC) -->
+                        <div class="mt-3 pt-3 border-t border-slate-200">
+                            <label class="block text-xs font-bold text-slate-600 mb-2">👥 TIPO DE CLIENTE</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="toggleClientTypeFilter('')" data-client-type="" class="client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-drk-500 text-white border-drk-500">
+                                    Todos
+                                </button>
+                                <button onclick="toggleClientTypeFilter('P')" data-client-type="P" class="client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-white text-slate-700 border-slate-300 hover:border-drk-400">
+                                    P - Pymes
+                                </button>
+                                <button onclick="toggleClientTypeFilter('A')" data-client-type="A" class="client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-white text-slate-700 border-slate-300 hover:border-drk-400">
+                                    A - Autónomos
+                                </button>
+                                <button onclick="toggleClientTypeFilter('R')" data-client-type="R" class="client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-white text-slate-700 border-slate-300 hover:border-drk-400">
+                                    R - Residencial
+                                </button>
+                                <button onclick="toggleClientTypeFilter('C')" data-client-type="C" class="client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-white text-slate-700 border-slate-300 hover:border-drk-400">
+                                    C - Comunidad
+                                </button>
                             </div>
                         </div>
                         
@@ -17837,15 +17858,28 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                 offer: offer,
                 originalIndex: originalIndex
             })).filter(item => {
-                if (searchTerm === '') return true;
+                // Filtro por nombre
+                if (searchTerm !== '') {
+                    const offerName = item.offer.offer.name.toLowerCase();
+                    const commercializer = item.offer.offer.isDrk ? 'drk energía' : (item.offer.offer.commercializer || '').toLowerCase();
+                    const description = (item.offer.offer.description || '').toLowerCase();
+                    
+                    const matchesName = offerName.includes(searchTerm) || 
+                                       commercializer.includes(searchTerm) || 
+                                       description.includes(searchTerm);
+                    
+                    if (!matchesName) return false;
+                }
                 
-                const offerName = item.offer.offer.name.toLowerCase();
-                const commercializer = item.offer.offer.isDrk ? 'drk energía' : (item.offer.offer.commercializer || '').toLowerCase();
-                const description = (item.offer.offer.description || '').toLowerCase();
+                // Filtro por tipo de cliente (PARC)
+                if (activeClientTypeFilter !== '') {
+                    const tarifaType = item.offer.offer.TARIFA || item.offer.offer.tarifa || '';
+                    if (!tarifaType.toUpperCase().includes(activeClientTypeFilter)) {
+                        return false;
+                    }
+                }
                 
-                return offerName.includes(searchTerm) || 
-                       commercializer.includes(searchTerm) || 
-                       description.includes(searchTerm);
+                return true;
             });
             
             // Ordenar ofertas filtradas
@@ -17936,6 +17970,8 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                 
                 // Para DRK, usar el campo que tenga más información como título
                 let displayTitle, displaySubtitle;
+                const tarifaType = offer.offer.TARIFA || offer.offer.tarifa || ''; // TARIFA (mayúsculas) contiene PARC, TEE 2, etc.
+                
                 if (offer.offer.isDrk) {
                     // Si description es más largo que name, usarlo como título
                     if (description.length > name.length) {
@@ -17946,9 +17982,17 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                         displayTitle = name;
                         displaySubtitle = description; // Usar description como subtítulo
                     }
+                    // Añadir tipo de tarifa si existe
+                    if (tarifaType) {
+                        displaySubtitle = displaySubtitle ? `${displaySubtitle} - ${tarifaType}` : tarifaType;
+                    }
                 } else {
                     displayTitle = name;
                     displaySubtitle = `${commercializer}${description && description !== name ? ' - ' + description : ''}`;
+                    // Añadir tipo de tarifa si existe
+                    if (tarifaType) {
+                        displaySubtitle = `${displaySubtitle} - ${tarifaType}`;
+                    }
                 }
                 
                 const offerCard = document.createElement('label');
@@ -17966,12 +18010,20 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                     const tp1 = offer.offer.p_potencia_1 ? `${offer.offer.p_potencia_1.toFixed(3)}` : '-';
                     const tp2 = offer.offer.p_potencia_2 ? `${offer.offer.p_potencia_2.toFixed(3)}` : '-';
                     
-                    preciosHTML = `<div class="mt-2 pt-2 border-t border-slate-200 text-xs space-y-0.5">
-                        <div class="flex justify-between"><span class="text-slate-500">⚡ Energía P1:</span><span class="font-mono">${te1} €/kWh</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">⚡ Energía P2:</span><span class="font-mono">${te2} €/kWh</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">⚡ Energía P3:</span><span class="font-mono">${te3} €/kWh</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">🔌 Potencia P1:</span><span class="font-mono">${tp1} €/kW/año</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">🔌 Potencia P2:</span><span class="font-mono">${tp2} €/kW/año</span></div>
+                    preciosHTML = `<div class="mt-2 pt-2 border-t border-slate-200 text-[10px]">
+                        <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 sm:justify-around">
+                            <div class="space-y-0.5">
+                                <div class="text-slate-600 font-semibold mb-1">⚡ Energía</div>
+                                <div class="flex justify-between sm:block"><span>E1:</span> <span class="font-mono whitespace-nowrap">${te1} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E2:</span> <span class="font-mono whitespace-nowrap">${te2} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E3:</span> <span class="font-mono whitespace-nowrap">${te3} €/kWh</span></div>
+                            </div>
+                            <div class="space-y-0.5 mt-2 sm:mt-0">
+                                <div class="text-slate-600 font-semibold mb-1">🔌 Potencia</div>
+                                <div class="flex justify-between sm:block"><span>P1:</span> <span class="font-mono whitespace-nowrap">${tp1} €/kW/año</span></div>
+                                <div class="flex justify-between sm:block"><span>P2:</span> <span class="font-mono whitespace-nowrap">${tp2} €/kW/año</span></div>
+                            </div>
+                        </div>
                     </div>`;
                 } else if (tariffTypeForPrices === '3.0TD') {
                     // 3.0TD: 6 periodos de energía y potencia
@@ -17988,20 +18040,26 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                     const tp5 = offer.offer.p_potencia_5 ? `${offer.offer.p_potencia_5.toFixed(2)}` : '-';
                     const tp6 = offer.offer.p_potencia_6 ? `${offer.offer.p_potencia_6.toFixed(2)}` : '-';
                     
-                    preciosHTML = `<div class="mt-2 pt-2 border-t border-slate-200 text-xs">
-                        <div class="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">⚡ Energía P1:</span><span class="font-mono">${te1} €/kWh</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">🔌 Potencia P1:</span><span class="font-mono">${tp1} €/kW/año</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">⚡ Energía P2:</span><span class="font-mono">${te2} €/kWh</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">🔌 Potencia P2:</span><span class="font-mono">${tp2} €/kW/año</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">⚡ Energía P3:</span><span class="font-mono">${te3} €/kWh</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">🔌 Potencia P3:</span><span class="font-mono">${tp3} €/kW/año</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">⚡ Energía P4:</span><span class="font-mono">${te4} €/kWh</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">🔌 Potencia P4:</span><span class="font-mono">${tp4} €/kW/año</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">⚡ Energía P5:</span><span class="font-mono">${te5} €/kWh</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">🔌 Potencia P5:</span><span class="font-mono">${tp5} €/kW/año</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">⚡ Energía P6:</span><span class="font-mono">${te6} €/kWh</span></div>
-                            <div class="flex justify-between text-xs"><span class="text-slate-500">🔌 Potencia P6:</span><span class="font-mono">${tp6} €/kW/año</span></div>
+                    preciosHTML = `<div class="mt-2 pt-2 border-t border-slate-200 text-[10px]">
+                        <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 sm:justify-around">
+                            <div class="space-y-0.5">
+                                <div class="text-slate-600 font-semibold mb-1">⚡ Energía</div>
+                                <div class="flex justify-between sm:block"><span>E1:</span> <span class="font-mono whitespace-nowrap">${te1} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E2:</span> <span class="font-mono whitespace-nowrap">${te2} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E3:</span> <span class="font-mono whitespace-nowrap">${te3} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E4:</span> <span class="font-mono whitespace-nowrap">${te4} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E5:</span> <span class="font-mono whitespace-nowrap">${te5} €/kWh</span></div>
+                                <div class="flex justify-between sm:block"><span>E6:</span> <span class="font-mono whitespace-nowrap">${te6} €/kWh</span></div>
+                            </div>
+                            <div class="space-y-0.5 mt-2 sm:mt-0">
+                                <div class="text-slate-600 font-semibold mb-1">🔌 Potencia</div>
+                                <div class="flex justify-between sm:block"><span>P1:</span> <span class="font-mono whitespace-nowrap">${tp1} €/kW/año</span></div>
+                                <div class="flex justify-between sm:block"><span>P2:</span> <span class="font-mono whitespace-nowrap">${tp2} €/kW/año</span></div>
+                                <div class="flex justify-between sm:block"><span>P3:</span> <span class="font-mono whitespace-nowrap">${tp3} €/kW/año</span></div>
+                                <div class="flex justify-between sm:block"><span>P4:</span> <span class="font-mono whitespace-nowrap">${tp4} €/kW/año</span></div>
+                                <div class="flex justify-between sm:block"><span>P5:</span> <span class="font-mono whitespace-nowrap">${tp5} €/kW/año</span></div>
+                                <div class="flex justify-between sm:block"><span>P6:</span> <span class="font-mono whitespace-nowrap">${tp6} €/kW/año</span></div>
+                            </div>
                         </div>
                     </div>`;
                 }
@@ -18029,6 +18087,9 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                     </div>`;
                 }
                 
+                // Generar panel de explicación del tipo de tarifa
+                const tarifaExplanationHTML = decodeTariffType(tarifaType);
+                
                 offerCard.innerHTML = `
                     <input type="radio" name="selected_offer" value="${originalIndex}" class="hidden">
                     <div class="offer-card-content flex items-start gap-4 p-4 rounded-xl border-2 border-slate-300 bg-white transition hover:border-drk-400 hover:bg-drk-50">
@@ -18036,36 +18097,37 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
                         <div class="flex-1">
                             <p class="font-bold text-base text-slate-900">${displayTitle}</p>
                             <p class="text-sm text-slate-600">${displaySubtitle}</p>
+                            ${tarifaExplanationHTML}
                             ${preciosHTML}
                         </div>
                         <div class="text-right flex-shrink-0">
                             ${window.optimizedPowerEnabled && offer.ahorroTotal !== undefined && offer.solarSurplus && offer.solarSurplus.enabled ? `
                                 <!-- OPTIMIZACIÓN + EXCEDENTES SOLARES - MOSTRAR SOLO TOTAL -->
-                                <p class="text-xs text-slate-500">${tr('Ahorro anual total')}</p>
-                                <p class="text-xs text-slate-600 italic mb-1">(incl. optimización ⚡ y excedentes ☀️)</p>
-                                <p class="text-2xl font-black text-green-700">${eur(offer.ahorroTotal)}</p>
-                                ${comisionAnual > 0 ? `<p class="text-xs text-blue-600 font-semibold mt-1">💰 Comisión aprox. anual: ${eur(comisionAnual)}</p>` : ''}
+                                <p class="text-[10px] sm:text-xs text-slate-500">${tr('Ahorro anual total')}</p>
+                                <p class="text-[9px] sm:text-xs text-slate-600 italic mb-1">(incl. optimización ⚡ y excedentes ☀️)</p>
+                                <p class="text-xl sm:text-2xl font-black text-green-700">${eur(offer.ahorroTotal)}</p>
+                                ${comisionAnual > 0 ? `<p class="text-[9px] sm:text-xs text-blue-600 font-semibold mt-1 whitespace-nowrap">💰 Comisión: ${eur(comisionAnual)}</p>` : ''}
                             ` : window.optimizedPowerEnabled && offer.ahorroTotal !== undefined ? `
-                                <!-- Solo OPTIMIZACIÓN -->\n                                <p class="text-xs text-slate-500">${tr('Ahorro anual')}</p>
+                                <!-- Solo OPTIMIZACIÓN -->\n                                <p class="text-[10px] sm:text-xs text-slate-500">${tr('Ahorro anual')}</p>
                                 <p class="text-sm font-bold text-green-600">${eur(offer.savingsActual)}</p>
-                                <p class="text-xs text-orange-600 font-semibold">+ ${eur(offer.ahorroAdicional)} ⚡</p>
+                                <p class="text-[10px] sm:text-xs text-orange-600 font-semibold">+ ${eur(offer.ahorroAdicional)} ⚡</p>
                                 <p class="text-xl font-black text-green-700">${eur(offer.ahorroTotal)}</p>
-                                ${comisionAnual > 0 ? `<p class="text-xs text-blue-600 font-semibold mt-1">💰 Comisión aprox. anual: ${eur(comisionAnual)}</p>` : ''}
+                                ${comisionAnual > 0 ? `<p class="text-[9px] sm:text-xs text-blue-600 font-semibold mt-1 whitespace-nowrap">💰 Comisión: ${eur(comisionAnual)}</p>` : ''}
                             ` : offer.solarSurplus && offer.solarSurplus.enabled ? `
-                                <!-- Solo EXCEDENTES SOLARES -->\n                                <p class="text-xs text-slate-500">${tr('Ahorro anual')}</p>
+                                <!-- Solo EXCEDENTES SOLARES -->\n                                <p class="text-[10px] sm:text-xs text-slate-500">${tr('Ahorro anual')}</p>
                                 <p class="text-sm font-bold text-green-600">${eur(offer.savings - (offer.solarSurplus.annualDiscount || 0))}</p>
-                                <p class="text-xs text-orange-600 font-semibold">+ ${eur(offer.solarSurplus.annualDiscount || 0)} ☀️</p>
+                                <p class="text-[10px] sm:text-xs text-orange-600 font-semibold">+ ${eur(offer.solarSurplus.annualDiscount || 0)} ☀️</p>
                                 <p class="text-xl font-black text-green-700">${eur(offer.savings)}</p>
-                                ${comisionAnual > 0 ? `<p class="text-xs text-blue-600 font-semibold mt-1">💰 Comisión aprox. anual: ${eur(comisionAnual)}</p>` : ''}
+                                ${comisionAnual > 0 ? `<p class="text-[9px] sm:text-xs text-blue-600 font-semibold mt-1 whitespace-nowrap">💰 Comisión: ${eur(comisionAnual)}</p>` : ''}
                             ` : offer.solarSurplus && offer.solarSurplus.noPrice ? `
-                                <!-- No tiene compensación de excedentes -->\n                                <p class="text-xs text-slate-500">${tr('Ahorro anual')}</p>
+                                <!-- No tiene compensación de excedentes -->\n                                <p class="text-[10px] sm:text-xs text-slate-500">${tr('Ahorro anual')}</p>
                                 <p class="text-xl font-black text-green-600">${eur(offer.savings)}</p>
-                                <p class="text-xs text-slate-400 italic mt-1">☀️ ${tr('Sin compensación')}</p>
-                                ${comisionAnual > 0 ? `<p class="text-xs text-blue-600 font-semibold mt-1">💰 Comisión aprox. anual: ${eur(comisionAnual)}</p>` : ''}
+                                <p class="text-[10px] sm:text-xs text-slate-400 italic mt-1">☀️ ${tr('Sin compensación')}</p>
+                                ${comisionAnual > 0 ? `<p class="text-[9px] sm:text-xs text-blue-600 font-semibold mt-1 whitespace-nowrap">💰 Comisión: ${eur(comisionAnual)}</p>` : ''}
                             ` : `
-                                <!-- Sin excedentes ni optimización -->\n                                <p class="text-xs text-slate-500">${tr('Ahorro anual')}</p>
+                                <!-- Sin excedentes ni optimización -->\n                                <p class="text-[10px] sm:text-xs text-slate-500">${tr('Ahorro anual')}</p>
                                 <p class="text-xl font-black text-green-600">${eur(offer.savings)}</p>
-                                ${comisionAnual > 0 ? `<p class="text-xs text-blue-600 font-semibold mt-1">💰 Comisión aprox. anual: ${eur(comisionAnual)}</p>` : ''}
+                                ${comisionAnual > 0 ? `<p class="text-[9px] sm:text-xs text-blue-600 font-semibold mt-1 whitespace-nowrap">💰 Comisión: ${eur(comisionAnual)}</p>` : ''}
                             `}
                         </div>
                     </div>
@@ -18079,7 +18141,51 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
             });
         }
         
+        // Función para decodificar tipo de tarifa
+        function decodeTariffType(tarifaType) {
+            if (!tarifaType) return '';
+            
+            const meanings = {
+                'P': 'Pymes',
+                'A': 'Autónomos',
+                'R': 'Residencial',
+                'C': 'Comunidad'
+            };
+            
+            let html = '<div class="mt-2 pt-2 border-t border-slate-200">';
+            html += '<p class="text-xs text-slate-600 font-semibold mb-1">Precios para</p>';
+            html += '<div class="text-[10px] text-slate-500 space-y-0.5">';
+            
+            for (let char of tarifaType.toUpperCase()) {
+                if (meanings[char]) {
+                    html += `<div>${char}= ${meanings[char]}</div>`;
+                }
+            }
+            
+            html += '</div></div>';
+            return html;
+        }
+        
         // NUEVAS FUNCIONES: Filtrado y ordenación de ofertas
+        // Variable global para el filtro de tipo de cliente
+        let activeClientTypeFilter = '';
+        
+        function toggleClientTypeFilter(clientType) {
+            activeClientTypeFilter = clientType;
+            
+            // Actualizar estilos de botones
+            document.querySelectorAll('.client-type-filter').forEach(btn => {
+                const btnType = btn.getAttribute('data-client-type');
+                if (btnType === clientType) {
+                    btn.className = 'client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-drk-500 text-white border-drk-500';
+                } else {
+                    btn.className = 'client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-white text-slate-700 border-slate-300 hover:border-drk-400';
+                }
+            });
+            
+            filterAndSortOffers();
+        }
+        
         function filterAndSortOffers() {
             renderOffersList();
         }
@@ -18087,6 +18193,18 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
         function clearOfferFilters() {
             document.getElementById('offer-search-input').value = '';
             document.getElementById('offer-sort-select').value = 'savings_desc';
+            activeClientTypeFilter = '';
+            
+            // Resetear botones de tipo de cliente
+            document.querySelectorAll('.client-type-filter').forEach(btn => {
+                const btnType = btn.getAttribute('data-client-type');
+                if (btnType === '') {
+                    btn.className = 'client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-drk-500 text-white border-drk-500';
+                } else {
+                    btn.className = 'client-type-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition bg-white text-slate-700 border-slate-300 hover:border-drk-400';
+                }
+            });
+            
             renderOffersList();
         }
         
@@ -24850,6 +24968,7 @@ ${clientName}
                     calculation: result,
                     name: tariff.name || tariff.Name,
                     description: tariff.description || tariff.Description || (tariff.name || tariff.Name),
+                    tarifa: tariff.TARIFA || tariff.tarifa || '', // TARIFA (mayúsculas) contiene PARC
                     isIndexed: (tariff.name || tariff.Name || '').toUpperCase().includes('INDEX'),
                     ahorro: result.ahorro_anual
                 };
@@ -24947,6 +25066,48 @@ ${clientName}
                         </div>
                     </div>
                     
+                    <!-- NUEVO: Filtros por tipo de cliente (PARC) -->
+                    <div class="mb-4 p-4 bg-slate-50 rounded-lg">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">👥 Tipo de cliente:</label>
+                        <div class="flex gap-2 flex-wrap">
+                            <button 
+                                onclick="setGasClientTypeFilter('')"
+                                data-gas-client-type=""
+                                class="gas-client-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition ${window.gasClientTypeFilter === '' || !window.gasClientTypeFilter ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-700 border-slate-200 hover:border-red-300'}"
+                            >
+                                Todos
+                            </button>
+                            <button 
+                                onclick="setGasClientTypeFilter('P')"
+                                data-gas-client-type="P"
+                                class="gas-client-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition ${window.gasClientTypeFilter === 'P' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-700 border-slate-200 hover:border-red-300'}"
+                            >
+                                P - Pymes
+                            </button>
+                            <button 
+                                onclick="setGasClientTypeFilter('A')"
+                                data-gas-client-type="A"
+                                class="gas-client-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition ${window.gasClientTypeFilter === 'A' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-700 border-slate-200 hover:border-red-300'}"
+                            >
+                                A - Autónomos
+                            </button>
+                            <button 
+                                onclick="setGasClientTypeFilter('R')"
+                                data-gas-client-type="R"
+                                class="gas-client-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition ${window.gasClientTypeFilter === 'R' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-700 border-slate-200 hover:border-red-300'}"
+                            >
+                                R - Residencial
+                            </button>
+                            <button 
+                                onclick="setGasClientTypeFilter('C')"
+                                data-gas-client-type="C"
+                                class="gas-client-filter px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition ${window.gasClientTypeFilter === 'C' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-700 border-slate-200 hover:border-red-300'}"
+                            >
+                                C - Comunidad
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="space-y-3">
             `;
             
@@ -24961,21 +25122,42 @@ ${clientName}
                 const precioFijoDiario = item.calculation.p_fijo_diario ? parseFloat(item.calculation.p_fijo_diario).toFixed(5) : '-';
                 const precioEnergia = item.calculation.p1_price ? parseFloat(item.calculation.p1_price).toFixed(5) : '-';
                 
+                // Obtener tipo de tarifa y generar explicación
+                const tarifaType = item.tarifa || '';
+                let tarifaExplanation = '';
+                if (tarifaType) {
+                    const meanings = {
+                        'P': 'Pymes',
+                        'A': 'Autónomos',
+                        'R': 'Residencial',
+                        'C': 'Comunidad'
+                    };
+                    
+                    tarifaExplanation = '<div class="mt-2 pt-2 border-t border-slate-300"><p class="text-xs text-slate-600 font-semibold mb-1">Precios para</p><div class="text-[10px] text-slate-500 space-y-0.5">';
+                    for (let char of tarifaType.toUpperCase()) {
+                        if (meanings[char]) {
+                            tarifaExplanation += `<div>${char}= ${meanings[char]}</div>`;
+                        }
+                    }
+                    tarifaExplanation += '</div></div>';
+                }
+                
                 html += `
-                    <label class="flex items-center gap-3 p-4 border-2 ${isPositive ? 'border-green-200 bg-green-50' : 'border-slate-200'} rounded-lg hover:border-red-300 cursor-pointer transition">
+                    <label class="flex items-start gap-3 p-5 border-2 ${isPositive ? 'border-green-200 bg-green-50' : 'border-slate-200'} rounded-lg hover:border-red-300 cursor-pointer transition mb-3">
                         <input 
                             type="checkbox" 
-                            class="gas-tariff-checkbox w-5 h-5 text-red-600 rounded flex-shrink-0"
+                            class="gas-tariff-checkbox w-5 h-5 text-red-600 rounded flex-shrink-0 mt-0.5"
                             data-index="${index}"
                         >
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-1">
+                            <div class="flex items-center gap-2 mb-2">
                                 <span class="font-bold text-drk-900">${item.name}</span>
                                 <span class="text-xs px-2 py-1 rounded ${item.isIndexed ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${typeLabel}</span>
                             </div>
-                            <p class="text-sm text-slate-600 mb-2">${item.description}</p>
-                            <div class="pt-1 border-t border-slate-300">
-                                <p class="text-xs font-bold text-slate-700 mb-0.5">📋 PRECIOS APLICADOS:</p>
+                            <p class="text-sm text-slate-600 mb-3">${item.description}${tarifaType ? ' - ' + tarifaType : ''}</p>
+                            ${tarifaExplanation}
+                            <div class="pt-2 mt-2 border-t border-slate-300">
+                                <p class="text-xs font-bold text-slate-700 mb-1.5">📋 PRECIOS APLICADOS:</p>
                                 <div class="flex gap-4 text-xs text-slate-600">
                                     <span>🔥 Término fijo: <span class="font-mono font-semibold">${precioFijoDiario} €/día</span></span>
                                     <span>🔥 Precio energía: <span class="font-mono font-semibold">${precioEnergia} €/kWh</span></span>
@@ -25121,6 +25303,12 @@ ${clientName}
             
             console.log('📋 Headers del Excel:', headers);
             
+            // TEMPORAL: Mostrar headers al usuario
+            if (headers.length > 0) {
+                const headersList = headers.map((h, i) => `[${i}] ${h}`).join('\n');
+                console.log('📋 Headers encontrados:\n' + headersList);
+            }
+            
             const data = [];
             
             for (let i = 1; i < lines.length; i++) {
@@ -25154,7 +25342,7 @@ ${clientName}
                 // Columnas críticas: name, p1_price, Tarifa
                 const hasName = row.name || row.Name;
                 const hasPrice = row.p1_price || row.P1_price;
-                const hasTarifa = row.Tarifa;
+                const hasTarifa = row.Tarifa || row.TARIFA; // Buscar en ambas columnas
                 
                 if (hasName && hasPrice && hasTarifa) {
                     data.push(row);
@@ -25269,7 +25457,7 @@ ${clientName}
             return {
                 name: tariff.name || tariff.Name,
                 descripcion: tariff.description || tariff.Description || tariff.name || tariff.Name,
-                tarifa: tariff.Tarifa,
+                tarifa: tariff.TARIFA || tariff.tarifa || '', // TARIFA (mayúsculas) contiene PARC
                 // Desglose
                 p_fijo_diario: p_fijo_diario,
                 p_fijo_descuento: p_fijo_descuento,
@@ -25527,10 +25715,32 @@ ${clientName}
                     const precioFijoDiario = result.p_fijo_diario ? parseFloat(result.p_fijo_diario).toFixed(5) : '-';
                     const precioEnergia = result.p1_price ? parseFloat(result.p1_price).toFixed(5) : '-';
                     
+                    // Generar explicación del tipo de tarifa
+                    const tarifaType = result.tarifa || '';
+                    let tarifaExplanation = '';
+                    if (tarifaType) {
+                        const meanings = {
+                            'P': 'Pymes',
+                            'A': 'Autónomos',
+                            'R': 'Residencial',
+                            'C': 'Comunidad'
+                        };
+                        
+                        tarifaExplanation = '<div class="mt-2 pt-2 border-t border-slate-300"><p class="text-xs text-slate-600 font-semibold mb-1">Precios para</p><div class="text-[10px] text-slate-500 space-y-0.5">';
+                        for (let char of tarifaType.toUpperCase()) {
+                            if (meanings[char]) {
+                                tarifaExplanation += `<div>${char}= ${meanings[char]}</div>`;
+                            }
+                        }
+                        tarifaExplanation += '</div></div>';
+                    }
+                    
                     html += `
                     <div class="mb-6 p-4 border-2 ${isPositiveSaving ? 'border-green-200 bg-green-50' : 'border-slate-200'} rounded-xl">
                         <h3 class="text-xl font-bold text-drk-900 mb-2">${result.name}</h3>
-                        <p class="text-sm text-slate-600 mb-2">${result.descripcion}</p>
+                        <p class="text-sm text-slate-600 mb-2">${result.descripcion}${tarifaType ? ' - ' + tarifaType : ''}</p>
+                        
+                        ${tarifaExplanation}
                         
                         <div class="mt-2 mb-3 pt-2 border-t border-slate-300">
                             <p class="text-xs font-bold text-slate-700 mb-1">📋 PRECIOS APLICADOS:</p>
@@ -25712,6 +25922,14 @@ ${clientName}
         
         // ===== FUNCIONES DE BÚSQUEDA (filtran DOM sin re-renderizar) =====
         
+        // Variable global para filtro de tipo de cliente en GAS
+        window.gasClientTypeFilter = '';
+        
+        function setGasClientTypeFilter(clientType) {
+            window.gasClientTypeFilter = clientType;
+            applyGasSearch(); // Re-aplicar filtros
+        }
+        
         function applyGasSearch() {
             const searchInput = document.getElementById('gas-search-input');
             if (!searchInput) return;
@@ -25728,7 +25946,18 @@ ${clientName}
                 const name = label.querySelector('.font-bold')?.textContent.toLowerCase() || '';
                 const desc = label.querySelector('.text-sm.text-slate-600')?.textContent.toLowerCase() || '';
                 
-                if (searchText === '' || name.includes(searchText) || desc.includes(searchText)) {
+                // Obtener el tipo de tarifa del índice
+                const index = parseInt(checkbox.dataset.index);
+                const tariffItem = window.gasSortedTariffs?.[index];
+                const tarifaType = tariffItem?.tarifa || '';
+                
+                // Aplicar filtro de búsqueda
+                const matchesSearch = searchText === '' || name.includes(searchText) || desc.includes(searchText);
+                
+                // Aplicar filtro de tipo de cliente
+                const matchesClientType = window.gasClientTypeFilter === '' || tarifaType.toUpperCase().includes(window.gasClientTypeFilter);
+                
+                if (matchesSearch && matchesClientType) {
                     label.style.display = '';
                     visibleCount++;
                 } else {
@@ -25739,7 +25968,7 @@ ${clientName}
             // Actualizar contador
             const countEl = document.getElementById('gas-search-count');
             if (countEl) {
-                if (searchText === '') {
+                if (searchText === '' && window.gasClientTypeFilter === '') {
                     countEl.textContent = '';
                 } else {
                     countEl.textContent = `Mostrando ${visibleCount} de ${totalCount} tarifas`;
@@ -25751,8 +25980,9 @@ ${clientName}
             const searchInput = document.getElementById('gas-search-input');
             if (searchInput) {
                 searchInput.value = '';
-                applyGasSearch();
             }
+            window.gasClientTypeFilter = '';
+            applyGasSearch();
         }
         
         // ========== FUNCIONES DE EXPORTACIÓN PDF PARA GAS ==========
