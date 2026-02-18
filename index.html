@@ -1157,10 +1157,127 @@
                     </button>
                     
                     <input type="file" id="image-file-input" accept="image/*" class="hidden">
-                    <button id="upload-menu-btn" class="w-full bg-drk-50 hover:bg-drk-100 text-drk-800 font-bold py-3 px-6 rounded-xl shadow-sm transform transition active:scale-95 flex items-center justify-center gap-3">
+                    <button id="upload-menu-btn" class="w-full bg-drk-50 hover:bg-drk-100 text-drk-800 font-bold py-3 px-6 rounded-xl shadow-sm transform transition active:scale-95 flex items-center justify-center gap-3 mb-3">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         <span>OTRAS OPCIONES DE CAPTURA</span>
                     </button>
+                    
+                    <!-- NUEVO: PISTOLA QR (escáner USB) -->
+                    <button id="gun-scan-btn" onclick="activarPistolaQR()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition active:scale-95 flex items-center justify-center gap-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                        <span>PISTOLA QR (USB)</span>
+                    </button>
+                </div>
+                
+                <!-- Modal de PISTOLA QR - Estilo Terminal Profesional -->
+                <div id="gun-scan-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl shadow-2xl max-w-md w-full border-4 border-amber-500/30 overflow-hidden">
+                        <!-- Header con animación -->
+                        <div class="bg-gradient-to-r from-amber-500 to-orange-500 p-6 relative overflow-hidden">
+                            <div class="absolute inset-0 bg-white/10 animate-pulse"></div>
+                            <div class="relative flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur">
+                                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-2xl font-black text-white">ESCÁNER USB</h3>
+                                        <p class="text-xs text-white/80 font-semibold">Listo para recibir datos</p>
+                                    </div>
+                                </div>
+                                <div class="w-3 h-3 bg-green-400 rounded-full shadow-lg animate-pulse"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Cuerpo del modal -->
+                        <div class="p-8">
+                            <!-- Estado de espera -->
+                            <div id="gun-waiting-state" class="text-center">
+                                <div class="mb-6 relative">
+                                    <!-- Animación de escáner -->
+                                    <div class="w-32 h-32 mx-auto relative">
+                                        <div class="absolute inset-0 border-4 border-amber-500/30 rounded-2xl"></div>
+                                        <div class="absolute inset-2 border-4 border-amber-500/50 rounded-2xl animate-ping"></div>
+                                        <div class="absolute inset-0 flex items-center justify-center">
+                                            <svg class="w-16 h-16 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-3 mb-6">
+                                    <p class="text-xl font-bold text-white">Apunte el escáner al código QR</p>
+                                    <p class="text-sm text-slate-400">El sistema capturará los datos automáticamente</p>
+                                </div>
+                                
+                                <!-- Indicador de estado con cursor parpadeante -->
+                                <div class="bg-slate-950/50 rounded-xl p-4 border-2 border-amber-500/20">
+                                    <div class="flex items-center justify-center gap-2 text-amber-400 font-mono text-sm">
+                                        <span>ESPERANDO ENTRADA</span>
+                                        <span class="inline-block w-2 h-4 bg-amber-400 animate-pulse"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Estado de recepción -->
+                            <div id="gun-receiving-state" class="hidden text-center">
+                                <div class="mb-6">
+                                    <div class="w-32 h-32 mx-auto relative">
+                                        <div class="absolute inset-0 border-4 border-green-500 rounded-2xl animate-spin"></div>
+                                        <div class="absolute inset-0 flex items-center justify-center">
+                                            <svg class="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-xl font-bold text-green-400 mb-2">RECIBIENDO DATOS</p>
+                                <p id="gun-char-count" class="text-sm text-slate-400 font-mono">0 caracteres</p>
+                            </div>
+                            
+                            <!-- Estado de éxito -->
+                            <div id="gun-success-state" class="hidden text-center">
+                                <div class="mb-6">
+                                    <div class="w-32 h-32 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+                                        <svg class="w-20 h-20 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <p class="text-2xl font-black text-green-400 mb-2">✓ CAPTURADO</p>
+                                <p class="text-sm text-slate-400">Procesando factura...</p>
+                            </div>
+                            
+                            <!-- Input oculto para captura real -->
+                            <input 
+                                type="text" 
+                                id="gun-scan-input" 
+                                class="opacity-0 absolute -left-9999px"
+                                autocomplete="off"
+                            >
+                            
+                            <!-- Botón cancelar -->
+                            <button 
+                                onclick="cancelarPistolaQR()" 
+                                class="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                Cancelar
+                            </button>
+                            
+                            <!-- Tip para pruebas -->
+                            <div class="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                                <p class="text-xs text-blue-300 text-center">
+                                    💡 <strong>Para probar:</strong> Puedes pegar (Ctrl+V) el código QR aquí
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <button id="manual-input-btn" class="w-full bg-drk-50 hover:bg-drk-100 text-drk-800 font-bold py-3 px-6 rounded-xl shadow-sm transform transition active:scale-95 flex items-center justify-center gap-3 mt-3">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -20496,6 +20613,211 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
             }, 'image/jpeg', 0.95);
         }
         
+        
+        // ===== PISTOLA QR USB =====
+        let gunScanBuffer = '';
+        let gunScanTimeout = null;
+        let gunScanActive = false;
+        
+        function activarPistolaQR() {
+            gunScanActive = true;
+            gunScanBuffer = '';
+            
+            // Mostrar modal
+            const modal = document.getElementById('gun-scan-modal');
+            modal.classList.remove('hidden');
+            
+            // Resetear estados visuales
+            document.getElementById('gun-waiting-state').classList.remove('hidden');
+            document.getElementById('gun-receiving-state').classList.add('hidden');
+            document.getElementById('gun-success-state').classList.add('hidden');
+            
+            // Enfocar el campo oculto para capturar teclado
+            const input = document.getElementById('gun-scan-input');
+            input.value = '';
+            input.focus();
+            
+            // Escuchar teclado globalmente
+            document.addEventListener('keydown', gunKeydownHandler, true);
+            
+            // Escuchar paste para pruebas manuales
+            input.addEventListener('paste', gunPasteHandler);
+            
+            console.log('🔫 Modal de pistola QR activado');
+        }
+        
+        function cancelarPistolaQR() {
+            gunScanActive = false;
+            gunScanBuffer = '';
+            clearTimeout(gunScanTimeout);
+            document.removeEventListener('keydown', gunKeydownHandler, true);
+            
+            const input = document.getElementById('gun-scan-input');
+            if (input) {
+                input.removeEventListener('paste', gunPasteHandler);
+                input.value = '';
+            }
+            
+            // Ocultar modal
+            const modal = document.getElementById('gun-scan-modal');
+            modal.classList.add('hidden');
+        }
+        
+        function mostrarEstadoRecibiendo() {
+            document.getElementById('gun-waiting-state').classList.add('hidden');
+            document.getElementById('gun-receiving-state').classList.remove('hidden');
+            document.getElementById('gun-success-state').classList.add('hidden');
+        }
+        
+        function mostrarEstadoExito() {
+            document.getElementById('gun-waiting-state').classList.add('hidden');
+            document.getElementById('gun-receiving-state').classList.add('hidden');
+            document.getElementById('gun-success-state').classList.remove('hidden');
+        }
+        
+        function actualizarContadorCaracteres(count) {
+            const countEl = document.getElementById('gun-char-count');
+            if (countEl) {
+                countEl.textContent = count + ' caracteres recibidos';
+            }
+        }
+        
+        function gunPasteHandler(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+            console.log('📋 Texto pegado (' + pastedText.length + ' chars)');
+            
+            gunScanBuffer = pastedText;
+            
+            // Mostrar estado de recepción
+            mostrarEstadoRecibiendo();
+            actualizarContadorCaracteres(pastedText.length);
+            
+            // Procesar después de un delay visual
+            setTimeout(() => {
+                mostrarEstadoExito();
+                setTimeout(() => {
+                    procesarQRPistola();
+                }, 600);
+            }, 800);
+        }
+        
+        function normalizarTextoEscanerUSB(texto) {
+            // La pistola QR con teclado español transforma ciertos caracteres
+            let normalizado = texto;
+            
+            // 1. Protocolo https:// → httpsÑ—
+            normalizado = normalizado.replace(/httpsÑ—/g, 'https://');
+            normalizado = normalizado.replace(/httpÑ—/g, 'http://');
+            
+            // 2. Doble slash
+            normalizado = normalizado.replace(/—/g, '//');
+            
+            // 3. Slash en rutas → guión
+            normalizado = normalizado.replace(/([a-z0-9])-([a-z0-9A-Z])/g, '$1/$2');
+            
+            // 4. Guión bajo → interrogación
+            normalizado = normalizado.replace(/_/g, '?');
+            
+            // 5. Slash → ampersand (en query string)
+            if (normalizado.includes('?')) {
+                const partes = normalizado.split('?');
+                if (partes.length === 2) {
+                    const queryString = partes[1].replace(/\//g, '&');
+                    normalizado = partes[0] + '?' + queryString;
+                }
+            }
+            
+            // 6. Signo de exclamación invertido → igual
+            normalizado = normalizado.replace(/¡/g, '=');
+            
+            // 7. Comilla simple → guión
+            normalizado = normalizado.replace(/'/g, '-');
+            
+            console.log('🔄 Texto normalizado del escáner USB');
+            
+            return normalizado;
+        }
+        
+        function procesarQRPistola() {
+            let qrText = gunScanBuffer.trim();
+            console.log('🔫 Procesando QR (' + qrText.length + ' chars)');
+            
+            if (qrText.length > 10) {
+                // Normalizar texto del escáner USB
+                qrText = normalizarTextoEscanerUSB(qrText);
+                
+                cancelarPistolaQR();
+                
+                // Extraer query string si viene como URL completa
+                let dataToProcess = qrText;
+                if (qrText.includes('?')) {
+                    dataToProcess = qrText.split('?')[1];
+                }
+                handleQRRead(dataToProcess);
+            } else {
+                gunScanBuffer = '';
+                // Volver a estado de espera
+                document.getElementById('gun-waiting-state').classList.remove('hidden');
+                document.getElementById('gun-receiving-state').classList.add('hidden');
+                document.getElementById('gun-success-state').classList.add('hidden');
+            }
+        }
+        
+        function gunKeydownHandler(e) {
+            if (!gunScanActive) return;
+            
+            // Enter = fin de escaneo
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                clearTimeout(gunScanTimeout);
+                
+                if (gunScanBuffer.length > 10) {
+                    mostrarEstadoExito();
+                    setTimeout(() => {
+                        procesarQRPistola();
+                    }, 600);
+                }
+                return;
+            }
+            
+            // Capturar caracteres
+            const skipKeys = ['Shift','Control','Alt','Meta','CapsLock','Tab','Escape',
+                             'ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
+                             'Home','End','PageUp','PageDown','Insert','Delete','Backspace',
+                             'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12'];
+            
+            if (!skipKeys.includes(e.key)) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                gunScanBuffer += e.key;
+                
+                // Cambiar a estado de recepción al primer carácter
+                if (gunScanBuffer.length === 1) {
+                    mostrarEstadoRecibiendo();
+                }
+                
+                // Actualizar contador
+                actualizarContadorCaracteres(gunScanBuffer.length);
+                
+                // Timeout: procesar automáticamente si no llega más input
+                clearTimeout(gunScanTimeout);
+                gunScanTimeout = setTimeout(() => {
+                    if (gunScanBuffer.length > 10) {
+                        console.log('🔫 Timeout - procesando automáticamente');
+                        mostrarEstadoExito();
+                        setTimeout(() => {
+                            procesarQRPistola();
+                        }, 600);
+                    }
+                }, 1500);
+            }
+        }
+        // ===== FIN PISTOLA QR =====
         
         function handleQRRead(raw) {
             stopScanner();
