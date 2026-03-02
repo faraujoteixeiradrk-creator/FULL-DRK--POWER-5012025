@@ -353,7 +353,7 @@
   <h2 class="text-3xl font-black text-red-600 mb-2 text-center">GAS</h2>
   <p id="gas-regulation-subtitle" class="text-slate-500 mb-6 text-center">Selecciona la regulación de gas.</p>
   <div class="w-full space-y-4">
-  <button onclick="selectGasTariff('RL1')" class="tariff-select-btn group">
+  <button onclick="selectGasTariff('RL1', true)" class="tariff-select-btn group">
   <div class="icon-wrapper bg-red-50 text-red-600 group-hover:bg-red-100">
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
   </div>
@@ -363,7 +363,7 @@
   </div>
   <span class="arrow-icon group-hover:text-red-500">&rarr;</span>
   </button>
-  <button onclick="selectGasTariff('RL2')" class="tariff-select-btn group">
+  <button onclick="selectGasTariff('RL2', true)" class="tariff-select-btn group">
   <div class="icon-wrapper bg-red-50 text-red-600 group-hover:bg-red-100">
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
   </div>
@@ -373,7 +373,7 @@
   </div>
   <span class="arrow-icon group-hover:text-red-500">&rarr;</span>
   </button>
-  <button onclick="selectGasTariff('RL3')" class="tariff-select-btn group">
+  <button onclick="selectGasTariff('RL3', true)" class="tariff-select-btn group">
   <div class="icon-wrapper bg-red-50 text-red-600 group-hover:bg-red-100">
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
   </div>
@@ -383,7 +383,7 @@
   </div>
   <span class="arrow-icon group-hover:text-red-500">&rarr;</span>
   </button>
-  <button onclick="selectGasTariff('RL4')" class="tariff-select-btn group">
+  <button onclick="selectGasTariff('RL4', true)" class="tariff-select-btn group">
   <div class="icon-wrapper bg-red-50 text-red-600 group-hover:bg-red-100">
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
   </div>
@@ -393,7 +393,7 @@
   </div>
   <span class="arrow-icon group-hover:text-red-500">&rarr;</span>
   </button>
-  <button onclick="selectGasTariff('RL5')" class="tariff-select-btn group">
+  <button onclick="selectGasTariff('RL5', true)" class="tariff-select-btn group">
   <div class="icon-wrapper bg-red-50 text-red-600 group-hover:bg-red-100">
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
   </div>
@@ -403,7 +403,7 @@
   </div>
   <span class="arrow-icon group-hover:text-red-500">&rarr;</span>
   </button>
-  <button onclick="selectGasTariff('RL6')" class="tariff-select-btn group">
+  <button onclick="selectGasTariff('RL6', true)" class="tariff-select-btn group">
   <div class="icon-wrapper bg-red-50 text-red-600 group-hover:bg-red-100">
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
   </div>
@@ -2277,8 +2277,14 @@
   const typeLabel = type === 'electricidad' ? 'Electricidad' : 'Gas';
   document.getElementById('supply-number-label').textContent = `#${supplyNumber} (${typeLabel})`;
   document.getElementById('supply-cups-display').textContent = data.cups || 'N/A';
-  // Limpiar el input
-  document.getElementById('multicups-supply-address').value = '';
+  // Pre-rellenar dirección desde IA si disponible para este tipo
+  const addressInput = document.getElementById('multicups-supply-address');
+  addressInput.value = '';
+  if (type === 'electricidad' && window.elecUsedIA && window.aiExtractedData && window.aiExtractedData.direccion_suministro) {
+  addressInput.value = window.aiExtractedData.direccion_suministro;
+  } else if (type === 'gas' && window.gasAiData && window.gasAiData.direccion_suministro && window.gasUsedIA) {
+  addressInput.value = window.gasAiData.direccion_suministro;
+  }
   console.log('🔵 Mostrando modal de dirección DUAL');
   // Mostrar modal
   const modal = document.getElementById('supply-address-modal');
@@ -2526,6 +2532,14 @@
   dualSupplies.push(supply);
   console.log('Total suministros:', dualSupplies.length);
   console.log('Array completo:', dualSupplies);
+  // Limpiar flags de IA para el siguiente suministro
+  if (type === 'gas') {
+  window.gasUsedIA = false;
+  window.gasAiData = null;
+  } else {
+  window.elecUsedIA = false;
+  window.aiExtractedData = null;
+  }
   // Limpiar finalResult pendiente
   window.pendingDualFinalResult = null;
   // Volver al gestor DUAL
@@ -2782,6 +2796,10 @@
   dualSupplies = window.dualSupplies; // Mantener referencia
   window.dualGlobalResults = null;
   dualTempSupply = null;
+  // Limpiar flags de IA
+  window.elecUsedIA = false;
+  window.gasUsedIA = false;
+  window.aiExtractedData = null;
   console.log('✅ Variables DUAL limpiadas');
   // Resetear checkbox de comparación indexada
   const checkboxIndexed = document.getElementById('compare-indexed-checkbox');
@@ -4710,8 +4728,10 @@
   if (sendOfferBtn) {
   sendOfferBtn.style.display = 'flex'; // Asegurar que esté visible
   sendOfferBtn.onclick = () => {
+  clearClientModal();
   document.getElementById('send-offer-modal').classList.remove('hidden');
   document.getElementById('send-offer-modal').classList.add('flex');
+  autoFillClientDataFromIA();
   document.querySelectorAll('#send-offer-modal input').forEach(input => {
   input.classList.remove('focus:ring-drk-500', 'focus:ring-powercup-500');
   input.classList.add(activeBrand.NAME.includes('DRK') ? 'focus:ring-drk-500' : 'focus:ring-powercup-500');
@@ -5438,8 +5458,10 @@
   if (sendOfferBtn) {
   sendOfferBtn.style.display = 'flex'; // Asegurar que esté visible
   sendOfferBtn.onclick = () => {
+  clearClientModal();
   document.getElementById('send-offer-modal').classList.remove('hidden');
   document.getElementById('send-offer-modal').classList.add('flex');
+  autoFillClientDataFromIA();
   document.querySelectorAll('#send-offer-modal input').forEach(input => {
   input.classList.remove('focus:ring-drk-500', 'focus:ring-powercup-500');
   input.classList.add(activeBrand.NAME.includes('DRK') ? 'focus:ring-drk-500' : 'focus:ring-powercup-500');
@@ -13435,6 +13457,10 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   const isDualMode = window.dualMode === true;
   const tariffToConfigure = isMultiCupsMode ? multiCupsAddType : currentTariffType;
   if (isMultiCupsMode && !tariffToConfigure) return window.showErrorModal("Error interno: Seleccione primero 2.0 TD o 3.0 TD en la pantalla anterior.");
+  // Limpiar flags de IA para que no interfieran con entrada manual
+  window.aiExtractedData = null;
+  window.elecUsedIA = false;
+  window.gasUsedIA = false;
   // 1. Limpiar inputs
   clearManualInputs('input');
   // 2. Configurar el modal para modo Individual, Multi o DUAL
@@ -16327,8 +16353,10 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   // === FIN Event listeners Pegar Código Completo ===
   document.getElementById('send-offer-btn').onclick = () => {
   if (lastComparisonResult) {
+  clearClientModal();
   document.getElementById('send-offer-modal').classList.remove('hidden');
   document.getElementById('send-offer-modal').classList.add('flex');
+  autoFillClientDataFromIA();
   // Aplicar focus ring de la marca a los inputs
   document.querySelectorAll('#send-offer-modal input').forEach(input => {
   input.classList.remove('focus:ring-drk-500', 'focus:ring-powercup-500');
@@ -16448,8 +16476,10 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   // NUEVO: Event listeners para solicitar mejora a DRK
   document.getElementById('request-improvement-btn').onclick = () => {
   if (lastComparisonResult) {
+  clearClientModal();
   document.getElementById('request-improvement-modal').classList.remove('hidden');
   document.getElementById('request-improvement-modal').classList.add('flex');
+  autoFillClientDataFromIA();
   } else {
   window.showErrorModal("Por favor, analice una factura primero.");
   }
@@ -16459,8 +16489,10 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   if (gasImprovementBtn) {
   gasImprovementBtn.onclick = () => {
   if (window.lastGasComparisonResult) {
+  clearClientModal();
   document.getElementById('request-improvement-modal').classList.remove('hidden');
   document.getElementById('request-improvement-modal').classList.add('flex');
+  autoFillClientDataFromIA();
   } else {
   window.showErrorModal("Por favor, analice una factura primero.");
   }
@@ -16471,8 +16503,10 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   if (dualImprovementBtn) {
   dualImprovementBtn.onclick = () => {
   if (window.dualGlobalResults && dualSupplies.length >= 2) {
+  clearClientModal();
   document.getElementById('request-improvement-modal').classList.remove('hidden');
   document.getElementById('request-improvement-modal').classList.add('flex');
+  autoFillClientDataFromIA();
   } else {
   window.showErrorModal("Por favor, realice una comparación DUAL primero.");
   }
@@ -19498,6 +19532,9 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   if (confirm('¿Estás seguro de que quieres eliminar todos los suministros?')) {
   window.dualSupplies = [];
   dualSupplies = window.dualSupplies; // Mantener referencia
+  window.elecUsedIA = false;
+  window.gasUsedIA = false;
+  window.aiExtractedData = null;
   updateDualSuppliesList();
   }
  }
@@ -20001,9 +20038,11 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   alert('Calcula la comparativa primero.');
   return;
   }
+  clearClientModal();
   // Mostrar el modal
   document.getElementById('client-data-modal').classList.remove('hidden');
   document.getElementById('client-data-modal').classList.add('flex');
+  autoFillClientDataFromIA();
  }
  // Función: Cerrar modal de datos del cliente
  function closeClientDataModal() {
@@ -22046,6 +22085,7 @@ ${clientName}
   // Construir data desde lastComparisonResult
   data = {
   tariff: tariff,
+  cups: (window.elecUsedIA && window.aiExtractedData && window.aiExtractedData.cups) || '',
   kwh_p1: parseFloat(result.kwh_p1) || 0,
   kwh_p2: parseFloat(result.kwh_p2) || 0,
   kwh_p3: parseFloat(result.kwh_p3) || 0,
@@ -22132,7 +22172,11 @@ ${clientName}
   }
   const type = 'gas';
   const tariff = currentGasTariff;
-  const data = window.gasCalculationParams;
+  const data = Object.assign({}, window.gasCalculationParams);
+  // Añadir cups desde IA si disponible
+  if (!data.cups && window.gasUsedIA && window.gasAiData && window.gasAiData.cups) {
+  data.cups = window.gasAiData.cups;
+  }
   // Obtener resultados de gas desde las variables globales
   const results = {
   drk: window.lastGasDRKResult || { total: 0, total_anual: 0 },
@@ -22161,7 +22205,52 @@ ${clientName}
   }
  };
  // FIN FUNCIONES MÓDULO DUAL
- // ===== CALCULADOR DE GAS =====
+ // ===== LIMPIAR MODAL DE DATOS DEL CLIENTE =====
+ function clearClientModal() {
+  // Limpia todos los campos de los 3 modales de datos del cliente
+  const fields = [
+  // send-offer-modal
+  'comercial-code-input', 'client-name-input', 'client-phone-input', 'client-address-input', 'client-email-input',
+  // request-improvement-modal
+  'improvement-comercial-code', 'improvement-client-name', 'improvement-client-cups', 'improvement-client-phone', 'improvement-client-email', 'improvement-observations',
+  // client-data-modal (DUAL)
+  'comercial-code', 'client-name', 'client-phone', 'client-address', 'client-email'
+  ];
+  fields.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = '';
+  });
+ }
+
+ // ===== AUTO-RELLENO DE DATOS DEL CLIENTE DESDE IA =====
+ function autoFillClientDataFromIA() {
+  // Solo rellenar si la sesión actual usó IA
+  const elecIA = window.elecUsedIA && window.aiExtractedData;
+  const gasIA = window.gasUsedIA && window.gasAiData;
+  if (!elecIA && !gasIA) return; // Entrada manual — no rellenar nada
+  const nombre = (elecIA && window.aiExtractedData.nombre_cliente) ||
+  (gasIA && window.gasAiData.nombre_cliente) || '';
+  const direccion = (elecIA && window.aiExtractedData.direccion_suministro) ||
+  (gasIA && window.gasAiData.direccion_suministro) || '';
+  const cups = (elecIA && window.aiExtractedData.cups) ||
+  (gasIA && window.gasAiData.cups) || '';
+  function sv(id, val) {
+  if (!val) return;
+  const el = document.getElementById(id);
+  if (el && !el.value) {
+  el.value = val;
+  el.style.borderColor = '#06b6d4';
+  el.style.background = '#ecfeff';
+  setTimeout(() => { el.style.borderColor = ''; el.style.background = ''; }, 3000);
+  }
+  }
+  sv('improvement-client-name', nombre);
+  sv('improvement-client-cups', cups);
+  sv('client-name', nombre);
+  sv('client-name-input', nombre);
+  sv('client-address', direccion);
+  sv('client-address-input', direccion);
+ }
  // Variables globales para GAS
  let currentGasTariff = '';
  let gasTariffsData = [];
@@ -22214,6 +22303,10 @@ ${clientName}
   alert('Los valores deben ser mayores a 0');
   return;
   }
+  // Si no vino de IA, limpiar datos IA
+  if (!window.gasUsedIA) {
+  window.gasAiData = null;
+  }
   // Guardar parámetros (CRÍTICO: también en window para modo DUAL)
   gasCalculationParams = { cups, dias, kwh, totalCliente, type, mode: 'best' };
   window.gasCalculationParams = gasCalculationParams;
@@ -22229,6 +22322,18 @@ ${clientName}
   const dias = parseFloat(document.getElementById('gas-dias').value);
   const kwh = parseFloat(document.getElementById('gas-kwh').value);
   const totalCliente = parseFloat(document.getElementById('gas-total-cliente').value);
+  if (!dias || !kwh || !totalCliente) {
+  alert(tr('Por favor, completa todos los campos'));
+  return;
+  }
+  if (dias <= 0 || kwh <= 0 || totalCliente <= 0) {
+  alert('Los valores deben ser mayores a 0');
+  return;
+  }
+  // Si no vino de IA, limpiar datos IA para que no contaminen el modal de dirección
+  if (!window.gasUsedIA) {
+  window.gasAiData = null;
+  }
   if (!dias || !kwh || !totalCliente) {
   alert(tr('Por favor, completa todos los campos'));
   return;
@@ -22359,8 +22464,15 @@ ${clientName}
   showGasResults(results, dias, kwh, totalCliente);
  }
  // Función: Seleccionar tarifa de GAS y abrir modal
- function selectGasTariff(tariff) {
+ function selectGasTariff(tariff, manual = false) {
   currentGasTariff = tariff;
+  if (manual) {
+  // Click manual del usuario — limpiar todo
+  window.gasUsedIA = false;
+  window.gasAiData = null;
+  if (!window.dualMode) window.elecUsedIA = false;
+  }
+  // Si es llamada programática (desde DUAL con IA), conservar gasAiData y gasUsedIA
   // Mostrar con formato correcto (Rl1 en lugar de RL1)
   const displayTariff = tariff.charAt(0).toUpperCase() + tariff.charAt(1).toLowerCase() + tariff.slice(2);
   document.getElementById('gas-selected-tariff').textContent = displayTariff;
@@ -23331,8 +23443,19 @@ ${clientName}
   alert(window.tr('El código comercial es obligatorio'));
   return;
   }
-  const clientName = prompt(window.tr('NOMBRE DEL CLIENTE:'), window.tr('[NOMBRE COMPLETO CLIENTE]')) || window.tr('[NOMBRE COMPLETO CLIENTE]');
-  const clientAddress = prompt(window.tr('DIRECCIÓN DE SUMINISTRO:'), '') || '';
+  // Auto-rellenar nombre y dirección desde IA SOLO si esta sesión usó IA
+  const iaName = window.gasUsedIA ? (
+  (window.gasAiData && window.gasAiData.nombre_cliente) ||
+  (window.aiExtractedData && window.aiExtractedData.nombre_cliente) ||
+  document.getElementById('improvement-client-name')?.value.trim() || ''
+  ) : '';
+  const iaAddress = window.gasUsedIA ? (
+  (window.gasAiData && window.gasAiData.direccion_suministro) ||
+  (window.aiExtractedData && window.aiExtractedData.direccion_suministro) ||
+  document.getElementById('client-address-input')?.value.trim() || ''
+  ) : '';
+  const clientName = iaName || prompt(window.tr('NOMBRE DEL CLIENTE:'), window.tr('[NOMBRE COMPLETO CLIENTE]')) || window.tr('[NOMBRE COMPLETO CLIENTE]');
+  const clientAddress = iaAddress || prompt(window.tr('DIRECCIÓN DE SUMINISTRO:'), '') || '';
   // AHORA SÍ: Si está en chino, cambiar temporalmente a inglés para el PDF
   if (wasChineseMode) {
   console.log('🇨🇳 Idioma chino detectado - cambiando a inglés para PDF');
@@ -27664,7 +27787,7 @@ ${clientName}
   try {
   let messageContent = [];
   if (file.type === 'application/pdf') {
-  addAILog('PDF detectado - enviando directamente a Claude...', 'working');
+  addAILog('PDF detectado - enviando directamente a DRK IA...', 'working');
   setAIProgress(25, 'Leyendo PDF...');
   const base64PDF = await imageToBase64(file);
   addAILog('PDF listo', 'success');
@@ -27682,8 +27805,8 @@ ${clientName}
   { type: 'text', text: getPromptIA() }
   ];
   }
-  setAIProgress(45, 'Enviando a Claude IA...');
-  addAILog('Analizando factura con Claude...', 'working');
+  setAIProgress(45, 'Enviando a DRK IA...');
+  addAILog('Analizando factura con DRK IA...', 'working');
   const response = await fetch('https://drk-ai-proxy.f-araujo-teixeira-drk.workers.dev', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -27700,7 +27823,7 @@ ${clientName}
   setAIProgress(80, 'Procesando respuesta...');
   const data = await response.json();
   const rawText = data.content[0].text.trim();
-  addAILog('Respuesta recibida de Claude', 'success');
+  addAILog('Respuesta recibida de DRK IA', 'success');
   let parsed;
   try {
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -27717,8 +27840,11 @@ ${clientName}
   dias: parsed.dias || 0,
   potencias_kw: p,
   energia_kwh: e,
-  total_factura: parsed.total_factura || 0
+  total_factura: parsed.total_factura || 0,
+  nombre_cliente: parsed.nombre_cliente || '',
+  direccion_suministro: parsed.direccion_suministro || ''
   };
+  window.aiExtractedData = aiExtractedData; // Exponer globalmente
   setAIProgress(100, 'Datos extraidos!');
   addAILog('Datos extraidos correctamente', 'success');
   const tarifa = aiExtractedData.tarifa;
@@ -27801,6 +27927,16 @@ ${clientName}
 === CAMPO 6: TOTAL ===
 - Importe final con IVA incluido. Busca "TOTAL A PAGAR", "TOTAL FACTURA", "Total a pagar". Es el importe mas alto.
 
+=== CAMPO 7: NOMBRE DEL TITULAR ===
+- Busca en "Datos del titular", "Datos del cliente", "Nombre:" o similar.
+- Es el nombre completo de la persona o empresa titular del contrato.
+- Ejemplo: "SEGMACAR AUTOMOVILES S.L" o "TAVOLA DIGITAL S.L."
+
+=== CAMPO 8: DIRECCIÓN DE SUMINISTRO ===
+- Busca en "Datos del suministro" o "Datos del punto de suministro".
+- Es la dirección donde está el punto de consumo (NO la dirección fiscal del titular).
+- Ejemplo: "Carretera Jaen 0 Km 9 6, 23440, Baeza, Jaén"
+
 === VERIFICACION ANTES DE RESPONDER ===
 Antes de generar el JSON, verifica mentalmente:
 1. ¿El CUPS que voy a poner aparece LITERALMENTE en la factura con la etiqueta "CUPS:"? Si no estoy seguro al 100%, escribo "DESCONOCIDO".
@@ -27810,7 +27946,7 @@ Antes de generar el JSON, verifica mentalmente:
 
 === RESPUESTA ===
 Devuelve SOLO este JSON sin texto adicional ni markdown ni backticks:
-{"cups":"ES...","tarifa":"2.0TD","dias":30,"potencias_kw":{"p1":0.0,"p2":0.0,"p3":0.0,"p4":0.0,"p5":0.0,"p6":0.0},"energia_kwh":{"e1":0,"e2":0,"e3":0,"e4":0,"e5":0,"e6":0},"total_factura":0.00,"notas":""}`;
+{"cups":"ES...","tarifa":"2.0TD","dias":30,"potencias_kw":{"p1":0.0,"p2":0.0,"p3":0.0,"p4":0.0,"p5":0.0,"p6":0.0},"energia_kwh":{"e1":0,"e2":0,"e3":0,"e4":0,"e5":0,"e6":0},"total_factura":0.00,"nombre_cliente":"","direccion_suministro":"","notas":""}`;
  }
   // ===== DRAG & DROP ZONES =====
  function setupDragZone(zoneId, tariff) {
@@ -27836,16 +27972,44 @@ Devuelve SOLO este JSON sin texto adicional ni markdown ni backticks:
  // ===== FIN DRAG & DROP =====
  window.confirmarDatosIA = function() {
   if (!aiExtractedData) return;
+  window.elecUsedIA = true; // Marcar que esta sesión usó IA
   const d = aiExtractedData;
   const tariff = d.tarifa || aiTargetTariff;
   document.getElementById('manual-input-modal').classList.remove('hidden');
   document.getElementById('manual-input-modal').classList.add('flex');
   setTimeout(() => {
-  function sv(id, val) { const el = document.getElementById(id); if (el && val) { el.value = val; el.style.borderColor = '#06b6d4'; el.style.background = '#ecfeff'; setTimeout(() => { el.style.borderColor = ''; el.style.background = ''; }, 3000); } }
-  sv('input-cups', d.cups); sv('input-billing-days', d.dias); sv('input-total-bill', d.total_factura);
+  // Helper: rellenar campo con animación visual
+  function sv(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== undefined && val !== null && val !== '' && val !== 0) {
+  el.value = val;
+  el.style.borderColor = '#06b6d4';
+  el.style.background = '#ecfeff';
+  setTimeout(() => { el.style.borderColor = ''; el.style.background = ''; }, 3000);
+  }
+  }
+  // Campos principales de factura
+  sv('input-cups', d.cups);
+  sv('input-billing-days', d.dias);
+  sv('input-total-bill', d.total_factura);
   if (d.potencias_kw) { const p = d.potencias_kw; sv('input-p1-kw',p.p1); sv('input-p2-kw',p.p2); sv('input-p3-kw',p.p3); sv('input-p4-kw',p.p4); sv('input-p5-kw',p.p5); sv('input-p6-kw',p.p6); }
   if (d.energia_kwh) { const e = d.energia_kwh; sv('input-e1-kwh',e.e1); sv('input-e2-kwh',e.e2); sv('input-e3-kwh',e.e3); sv('input-e4-kwh',e.e4); sv('input-e5-kwh',e.e5); sv('input-e6-kwh',e.e6); }
   if (typeof toggleMultiCupsInputPeriods === 'function') toggleMultiCupsInputPeriods(tariff, 'input');
+  // Rellenar nombre y dirección en modal de datos del comercial
+  if (d.nombre_cliente) {
+  sv('client-name', d.nombre_cliente);
+  sv('client-name-input', d.nombre_cliente);
+  sv('improvement-client-name', d.nombre_cliente);
+  }
+  if (d.direccion_suministro) {
+  sv('client-address', d.direccion_suministro);
+  sv('client-address-input', d.direccion_suministro);
+  sv('multicups-supply-address', d.direccion_suministro);
+  }
+  // Rellenar CUPS en modal de mejora
+  if (d.cups) {
+  sv('improvement-client-cups', d.cups);
+  }
   }, 150);
   cerrarModalIA();
  };
@@ -27931,8 +28095,8 @@ Devuelve SOLO este JSON sin texto adicional ni markdown ni backticks:
         setGasProgress(25, 'Cargando imagen...');
         messageContent = [{type:'image',source:{type:'base64',media_type:file.type,data:b64}},{type:'text',text:getPromptGasIA()}];
        }
-       setGasProgress(45, 'Enviando a Claude IA...');
-       addGasLog('Analizando con Claude...', 'working');
+       setGasProgress(45, 'Enviando a DRK IA...');
+       addGasLog('Analizando con DRK IA...', 'working');
        var response = await fetch('https://drk-ai-proxy.f-araujo-teixeira-drk.workers.dev', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -27958,8 +28122,11 @@ Devuelve SOLO este JSON sin texto adicional ni markdown ni backticks:
         dias: parsed.dias || 0,
         kwh: parsed.kwh || 0,
         total_factura: parsed.total_factura || 0,
+        nombre_cliente: parsed.nombre_cliente || '',
+        direccion_suministro: parsed.direccion_suministro || '',
         notas: parsed.notas || ''
        };
+       window.gasAiData = gasAiData; // Exponer globalmente
        setGasProgress(100, 'Datos extraidos!');
        addGasLog('Datos extraidos correctamente', 'success');
        var preview = '<div class="space-y-1.5">';
@@ -27979,10 +28146,12 @@ Devuelve SOLO este JSON sin texto adicional ni markdown ni backticks:
       }
      };
      function getPromptGasIA() {
-      return 'Eres un experto en facturas de gas espanolas. Analiza esta factura.\nINSTRUCCIONES:\n1. CUPS: Codigo que empieza por ES de 20-22 caracteres.\n2. DIAS: Dias del periodo de facturacion.\n3. KWH: kWh consumidos en el periodo.\n4. TOTAL: Importe final a pagar.\nDevuelve SOLO este JSON sin texto adicional:\n{"cups":"ES...","dias":30,"kwh":250.0,"total_factura":45.50,"notas":""}';
+      return 'Eres un experto en facturas de gas espanolas. Analiza esta factura.\nINSTRUCCIONES:\n1. CUPS: Codigo que empieza por ES de 20-22 caracteres. Busca la etiqueta explicita "CUPS:" en datos del suministro.\n2. DIAS: Dias del periodo de facturacion.\n3. KWH: kWh consumidos en el periodo.\n4. TOTAL: Importe final a pagar con IVA.\n5. NOMBRE_CLIENTE: Nombre completo del titular (persona o empresa). Busca en "Datos del titular" o "Nombre:".\n6. DIRECCION: Direccion del punto de suministro (NO la fiscal). Busca en "Datos del suministro".\nDevuelve SOLO este JSON sin texto adicional:\n{"cups":"ES...","dias":30,"kwh":250.0,"total_factura":45.50,"nombre_cliente":"","direccion_suministro":"","notas":""}';
      }
      window.confirmarDatosGasIA = function() {
       if (!gasAiData) return;
+      window.gasUsedIA = true; // Marcar que esta sesión usó IA
+      window.gasAiData = gasAiData; // Asegurar que está expuesto globalmente
       function sv(id, val) {
        var el = document.getElementById(id);
        if (el && val !== undefined && val !== 0 && val !== '') {
@@ -27996,6 +28165,17 @@ Devuelve SOLO este JSON sin texto adicional ni markdown ni backticks:
       sv('gas-dias', gasAiData.dias);
       sv('gas-kwh', gasAiData.kwh);
       sv('gas-total-cliente', gasAiData.total_factura);
+      // Rellenar nombre y dirección en modales compartidos
+      if (gasAiData.nombre_cliente) {
+       sv('client-name', gasAiData.nombre_cliente);
+       sv('client-name-input', gasAiData.nombre_cliente);
+       sv('improvement-client-name', gasAiData.nombre_cliente);
+      }
+      if (gasAiData.direccion_suministro) {
+       sv('client-address', gasAiData.direccion_suministro);
+       sv('client-address-input', gasAiData.direccion_suministro);
+       sv('multicups-supply-address', gasAiData.direccion_suministro);
+      }
       cerrarModalGasIA();
      };
      document.addEventListener('DOMContentLoaded', function() {
