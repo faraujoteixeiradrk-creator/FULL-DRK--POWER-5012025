@@ -2304,8 +2304,12 @@
   const supplyNumber = multiCupsData.length + 1;
   document.getElementById('supply-number-label').textContent = `#${supplyNumber}`;
   document.getElementById('supply-cups-display').textContent = data.cups || 'MANUAL';
-  // Limpiar el input
-  document.getElementById('multicups-supply-address').value = '';
+  // Rellenar dirección desde IA si disponible, si no limpiar
+  const addressInput = document.getElementById('multicups-supply-address');
+  addressInput.value = '';
+  if (window.elecUsedIA && window.aiExtractedData && window.aiExtractedData.direccion_suministro) {
+  addressInput.value = window.aiExtractedData.direccion_suministro;
+  }
   // Mostrar modal
   document.getElementById('supply-address-modal').classList.remove('hidden');
   document.getElementById('supply-address-modal').classList.add('flex');
@@ -15480,6 +15484,9 @@ ${tr('Puedes adjuntarlo directamente en el email para tu cliente.')}`);
   discount: 0,
   pricePerKwh: 0
   };
+  // Limpiar flags de IA para el siguiente suministro
+  window.elecUsedIA = false;
+  window.aiExtractedData = null;
   console.log('✅ Variables reseteadas para el próximo suministro en MULTICUPS');
   // Actualizar UI y volver a la vista SAGA
   document.getElementById('tariff-display-badge').textContent = multiCupsData.length;
